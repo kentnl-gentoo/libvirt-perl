@@ -1,0 +1,23 @@
+AUTHORS
+autobuild.sh
+CHANGES
+examples/dump-info.pl
+examples/dump-xml.pl
+examples/hv-stat.pl
+INSTALL
+lib/Sys/Virt.pm
+lib/Sys/Virt/Domain.pm
+lib/Sys/Virt/Error.pm
+LICENSE
+Makefile.PL
+MANIFEST			This list of files
+MANIFEST.SKIP
+META.yml
+perl-Sys-Virt.spec
+perl-Sys-Virt.spec.PL
+README
+t/005-pod.t
+t/010-pod-coverage.t
+t/020-constants.t
+typemap
+Virt.xs
