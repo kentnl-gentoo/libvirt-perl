@@ -1,13 +1,20 @@
 # -*- perl -*-
 
+use strict;
+use warnings;
 use Sys::Virt;
 
+my $addr = "";
+if (@ARGV == 2) {
+    $addr = shift @ARGV;
+}
+
 if (@ARGV != 1) {
-    print STDERR "syntax: $0 DOMAIN-NAME\n";
+    print STDERR "syntax: $0 [URI] DOMAIN-NAME\n";
     exit 1;
 }
 
-my $con = Sys::Virt->new(address => "", readonly => 1);
+my $con = Sys::Virt->new(address => $addr, readonly => 1);
 
 my $name = shift @ARGV;
 

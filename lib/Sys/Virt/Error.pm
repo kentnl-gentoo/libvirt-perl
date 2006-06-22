@@ -18,6 +18,8 @@ pretty much any of the Sys::Virt APIs.
 
 package Sys::Virt::Error;
 
+use strict;
+use warnings;
 use overload ('""' => 'stringify');
 
 =item $err->stringify
@@ -29,7 +31,7 @@ console to inform a user of the error.
 
 sub stringify {
     my $self = shift;
-    
+
     return "libvirt error code: " . $self->{code} . ", message: " . $self->{message} . ($self->{message} =~ /\n$/ ? "" : "\n");
 }
 
