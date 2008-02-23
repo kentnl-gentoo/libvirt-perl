@@ -1,21 +1,21 @@
 /* -*- c -*-
  *
  * Copyright (C) 2006 Red Hat
+ * Copyright (C) 2006-2007 Daniel P. Berrange
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * This program is free software; You can redistribute it and/or modify
+ * it under either:
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * a) the GNU General Public License as published by the Free
+ *   Software Foundation; either version 2, or (at your option) any
+ *   later version,
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * or
  *
+ * b) the "Artistic License"
+ *
+ * The file "LICENSE" distributed along with this file provides full
+ * details of the terms and conditions of the two licenses.
  */
 
 #include "EXTERN.h"
@@ -93,7 +93,7 @@ restore_domain(con, from)
       const char *from;
   PPCODE:
       if((virDomainRestore(con, from)) < 0) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(con));
       }
 
 unsigned long
@@ -103,7 +103,7 @@ get_version(con)
       unsigned long version;
    CODE:
       if (virConnectGetVersion(con, &version) < 0) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(con));
       }
       RETVAL = version;
   OUTPUT:
@@ -124,7 +124,7 @@ get_node_info(con)
       virNodeInfo info;
     CODE:
       if (virNodeGetInfo(con, &info) < 0) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(con));
       }
       RETVAL = newHV();
       hv_store (RETVAL, "model", 5, newSVpv(info.model, 0), 0);
@@ -138,58 +138,167 @@ get_node_info(con)
   OUTPUT:
       RETVAL
 
-
-
-AV *
-_list_domain_ids(con)
+SV *
+get_capabilities(con)
       virConnectPtr con;
+PREINIT:
+      char *xml;
+   CODE:
+      if (!(xml = virConnectGetCapabilities(con))) {
+	 _croak_error(virConnGetLastError(con));
+      }
+      RETVAL = newSVpv(xml, 0);
+      free(xml);
+  OUTPUT:
+      RETVAL
+
+int
+get_max_vcpus(con, type)
+      virConnectPtr con;
+      char *type;
+    CODE:
+      if ((RETVAL = virConnectGetMaxVcpus(con, type)) < 0) {
+	_croak_error(virConnGetLastError(con));
+      }
+  OUTPUT:
+      RETVAL
+
+SV *
+get_hostname(con)
+      virConnectPtr con;
+ PREINIT:
+      char *host;
+    CODE:
+      if ((host = virConnectGetHostname(con)) < 0) {
+	_croak_error(virConnGetLastError(con));
+      }
+      RETVAL = newSVpv(host, 0);
+      free(host);
+  OUTPUT:
+      RETVAL
+
+int
+num_of_domains(con)
+      virConnectPtr con;
+    CODE:
+      if ((RETVAL = virConnectNumOfDomains(con)) < 0) {
+	_croak_error(virConnGetLastError(con));
+      }
+  OUTPUT:
+      RETVAL
+
+void
+list_domain_ids(con, maxids)
+      virConnectPtr con;
+      int maxids
  PREINIT:
       int *ids;
-      int nid;
-      int i;
-  CODE:
-      if ((nid = virConnectNumOfDomains(con)) < 0) {
-	_croak_error(virGetLastError());
+      int i, nid;
+  PPCODE:
+      Newx(ids, maxids, int);
+      if ((nid = virConnectListDomains(con, ids, maxids)) < 0) {
+	_croak_error(virConnGetLastError(con));
       }
-      Newx(ids, nid, int);
-      if ((nid = virConnectListDomains(con, ids, nid)) < 0) {
-	_croak_error(virGetLastError());
-      }
-      RETVAL = newAV();
+      EXTEND(SP, nid);
       for (i = 0 ; i < nid ; i++) {
-	SV *sv = newSViv(ids[i]);
-	av_push(RETVAL, sv);
+	PUSHs(sv_2mortal(newSViv(ids[i])));
       }
       free(ids);
+
+
+int
+num_of_defined_domains(con)
+      virConnectPtr con;
+    CODE:
+      if ((RETVAL = virConnectNumOfDefinedDomains(con)) < 0) {
+	_croak_error(virConnGetLastError(con));
+      }
   OUTPUT:
       RETVAL
 
-#define MAX_NAMES 255
-
-#if 0
-AV *
-_list_defined_domains(con)
+void
+list_defined_domain_names(con, maxnames)
       virConnectPtr con;
+      int maxnames;
  PREINIT:
-      const char **names;
+      char **names;
       int ndom;
       int i;
-  CODE:
-      Newx(names, MAX_NAMES, const char *);
-      if ((ndom = virConnectListDefinedDomains(con, names, MAX_NAMES)) < 0) {
+  PPCODE:
+      Newx(names, maxnames, char *);
+      if ((ndom = virConnectListDefinedDomains(con, names, maxnames)) < 0) {
 	free(names);
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(con));
       }
-      RETVAL = newAV();
+      EXTEND(SP, ndom);
       for (i = 0 ; i < ndom ; i++) {
-	SV *sv = newSVpv(names[i], 0);
-	av_push(RETVAL, sv);
+	PUSHs(sv_2mortal(newSVpv(names[i], 0)));
+        free(names[i]);
       }
       free(names);
+
+
+int
+num_of_networks(con)
+      virConnectPtr con;
+    CODE:
+      if ((RETVAL = virConnectNumOfNetworks(con)) < 0) {
+	_croak_error(virConnGetLastError(con));
+      }
   OUTPUT:
       RETVAL
 
-#endif
+void
+list_network_names(con, maxnames)
+      virConnectPtr con;
+      int maxnames;
+ PREINIT:
+      char **names;
+      int i, nnet;
+  PPCODE:
+      Newx(names, maxnames, char *);
+      if ((nnet = virConnectListNetworks(con, names, maxnames)) < 0) {
+	_croak_error(virConnGetLastError(con));
+      }
+      EXTEND(SP, nnet);
+      for (i = 0 ; i < nnet ; i++) {
+	PUSHs(sv_2mortal(newSVpv(names[i], 0)));
+	free(names[i]);
+      }
+      free(names);
+
+
+int
+num_of_defined_networks(con)
+      virConnectPtr con;
+    CODE:
+      if ((RETVAL = virConnectNumOfDefinedNetworks(con)) < 0) {
+	_croak_error(virConnGetLastError(con));
+      }
+  OUTPUT:
+      RETVAL
+
+void
+list_defined_network_names(con, maxnames)
+      virConnectPtr con;
+      int maxnames;
+ PREINIT:
+      char **names;
+      int ndom;
+      int i;
+  PPCODE:
+      Newx(names, maxnames, char *);
+      if ((ndom = virConnectListDefinedNetworks(con, names, maxnames)) < 0) {
+	free(names);
+	_croak_error(virConnGetLastError(con));
+      }
+      EXTEND(SP, ndom);
+      for (i = 0 ; i < ndom ; i++) {
+	PUSHs(sv_2mortal(newSVpv(names[i], 0)));
+        free(names[i]);
+      }
+      free(names);
+
 
 void
 DESTROY(con)
@@ -205,7 +314,7 @@ _create_linux(con, xml)
       const char *xml;
     CODE:
       if (!(RETVAL = virDomainCreateLinux(con, xml, 0))) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(con));
       }
   OUTPUT:
       RETVAL
@@ -216,7 +325,7 @@ _define_xml(con, xml)
       const char *xml;
     CODE:
       if (!(RETVAL = virDomainDefineXML(con, xml))) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(con));
       }
   OUTPUT:
       RETVAL
@@ -227,7 +336,7 @@ _lookup_by_id(con, id)
       int id;
     CODE:
       if (!(RETVAL = virDomainLookupByID(con, id))) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(con));
       }
   OUTPUT:
       RETVAL
@@ -238,7 +347,7 @@ _lookup_by_name(con, name)
       const char *name;
     CODE:
       if (!(RETVAL = virDomainLookupByName(con, name))) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(con));
       }
   OUTPUT:
       RETVAL
@@ -249,7 +358,7 @@ _lookup_by_uuid(con, uuid)
       const unsigned char *uuid;
     CODE:
       if (!(RETVAL = virDomainLookupByUUID(con, uuid))) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(con));
       }
   OUTPUT:
       RETVAL
@@ -260,7 +369,7 @@ _lookup_by_uuid_string(con, uuid)
       const char *uuid;
     CODE:
       if (!(RETVAL = virDomainLookupByUUIDString(con, uuid))) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(con));
       }
   OUTPUT:
       RETVAL
@@ -270,7 +379,7 @@ get_id(dom)
       virDomainPtr dom;
     CODE:
       if ((RETVAL = virDomainGetID(dom)) < 0) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
   OUTPUT:
       RETVAL
@@ -283,7 +392,7 @@ get_uuid(dom)
       unsigned char rawuuid[16];
     CODE:
       if ((virDomainGetUUID(dom, rawuuid)) < 0) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
       RETVAL = newSVpv((char*)rawuuid, 16);
   OUTPUT:
@@ -296,7 +405,7 @@ get_uuid_string(dom)
       char uuid[36];
     CODE:
       if ((virDomainGetUUIDString(dom, uuid)) < 0) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
 
       RETVAL = newSVpv(uuid, 0);
@@ -308,7 +417,7 @@ get_name(dom)
       virDomainPtr dom;
     CODE:
       if (!(RETVAL = virDomainGetName(dom))) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
   OUTPUT:
       RETVAL
@@ -319,7 +428,7 @@ suspend(dom)
       virDomainPtr dom;
   PPCODE:
       if ((virDomainSuspend(dom)) < 0) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
 
 
@@ -328,7 +437,7 @@ resume(dom)
       virDomainPtr dom;
   PPCODE:
       if ((virDomainResume(dom)) < 0) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
 
 
@@ -338,7 +447,7 @@ save(dom, to)
       const char *to
   PPCODE:
       if ((virDomainSave(dom, to)) < 0) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
 
 
@@ -349,7 +458,7 @@ get_info(dom)
       virDomainInfo info;
     CODE:
       if (virDomainGetInfo(dom, &info) < 0) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
       RETVAL = newHV();
       hv_store (RETVAL, "state", 5, newSViv(info.state), 0);
@@ -366,7 +475,7 @@ get_max_memory(dom)
       virDomainPtr dom;
     CODE:
       if (!(RETVAL = virDomainGetMaxMemory(dom))) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
   OUTPUT:
       RETVAL
@@ -377,7 +486,7 @@ set_max_memory(dom, val)
       unsigned long val;
   PPCODE:
       if (virDomainSetMaxMemory(dom, val) < 0) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
 
 
@@ -387,8 +496,18 @@ set_memory(dom, val)
       unsigned long val;
   PPCODE:
       if (virDomainSetMemory(dom, val) < 0) {
-	_croak_error(virGetLastError());
+	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
+
+int
+get_max_vcpus(dom)
+      virDomainPtr dom;
+    CODE:
+      if (!(RETVAL = virDomainGetMaxVcpus(dom))) {
+	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
+      }
+  OUTPUT:
+      RETVAL
 
 
 SV *
@@ -398,7 +517,7 @@ get_os_type(dom)
       char *type;
     CODE:
       if (!(type = virDomainGetOSType(dom))) {
-	 _croak_error(virGetLastError());
+	 _croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
       RETVAL = newSVpv(type, 0);
       free(type);
@@ -412,7 +531,7 @@ get_xml_description(dom)
       char *xml;
     CODE:
       if (!(xml = virDomainGetXMLDesc(dom, 0))) {
-	 _croak_error(virGetLastError());
+	 _croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
       RETVAL = newSVpv(xml, 0);
       free(xml);
@@ -423,8 +542,8 @@ void
 shutdown(dom)
       virDomainPtr dom;
     PPCODE:
-      if (!virDomainShutdown(dom)) {
-	_croak_error(virGetLastError());
+      if (virDomainShutdown(dom) < 0) {
+	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
 
 void
@@ -432,24 +551,24 @@ reboot(dom, flags)
       virDomainPtr dom;
       unsigned int flags;
     PPCODE:
-      if (!virDomainReboot(dom, flags)) {
-	_croak_error(virGetLastError());
+      if (virDomainReboot(dom, flags) < 0) {
+	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
 
 void
 undefine(dom)
       virDomainPtr dom;
     PPCODE:
-      if (!virDomainUndefine(dom)) {
-	_croak_error(virGetLastError());
+      if (virDomainUndefine(dom) < 0) {
+	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
 
 void
 create(dom)
       virDomainPtr dom;
     PPCODE:
-      if (!virDomainCreate(dom)) {
-	_croak_error(virGetLastError());
+      if (virDomainCreate(dom) < 0) {
+	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
 
 void
@@ -459,8 +578,8 @@ destroy(dom_rv)
       virDomainPtr dom;
   PPCODE:
       dom = (virDomainPtr)SvIV((SV*)SvRV(dom_rv));
-      if (!virDomainDestroy(dom)) {
-	_croak_error(virGetLastError());
+      if (virDomainDestroy(dom) < 0) {
+	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
       sv_setref_pv(dom_rv, "Sys::Virt::Domain", NULL);
 
@@ -473,6 +592,170 @@ DESTROY(dom_rv)
       dom = (virDomainPtr)SvIV((SV*)SvRV(dom_rv));
       if (dom) {
 	virDomainFree(dom);
+      }
+
+
+
+MODULE = Sys::Virt::Network  PACKAGE = Sys::Virt::Network
+
+virNetworkPtr
+_create_xml(con, xml)
+      virConnectPtr con;
+      const char *xml;
+    CODE:
+      if (!(RETVAL = virNetworkCreateXML(con, xml))) {
+	_croak_error(virConnGetLastError(con));
+      }
+  OUTPUT:
+      RETVAL
+
+virNetworkPtr
+_define_xml(con, xml)
+      virConnectPtr con;
+      const char *xml;
+    CODE:
+      if (!(RETVAL = virNetworkDefineXML(con, xml))) {
+	_croak_error(virConnGetLastError(con));
+      }
+  OUTPUT:
+      RETVAL
+
+virNetworkPtr
+_lookup_by_name(con, name)
+      virConnectPtr con;
+      const char *name;
+    CODE:
+      if (!(RETVAL = virNetworkLookupByName(con, name))) {
+	_croak_error(virConnGetLastError(con));
+      }
+  OUTPUT:
+      RETVAL
+
+virNetworkPtr
+_lookup_by_uuid(con, uuid)
+      virConnectPtr con;
+      const unsigned char *uuid;
+    CODE:
+      if (!(RETVAL = virNetworkLookupByUUID(con, uuid))) {
+	_croak_error(virConnGetLastError(con));
+      }
+  OUTPUT:
+      RETVAL
+
+virNetworkPtr
+_lookup_by_uuid_string(con, uuid)
+      virConnectPtr con;
+      const char *uuid;
+    CODE:
+      if (!(RETVAL = virNetworkLookupByUUIDString(con, uuid))) {
+	_croak_error(virConnGetLastError(con));
+      }
+  OUTPUT:
+      RETVAL
+
+SV *
+get_uuid(net)
+      virNetworkPtr net;
+  PREINIT:
+      unsigned char rawuuid[16];
+    CODE:
+      if ((virNetworkGetUUID(net, rawuuid)) < 0) {
+	_croak_error(virConnGetLastError(virNetworkGetConnect(net)));
+      }
+      RETVAL = newSVpv((char*)rawuuid, 16);
+  OUTPUT:
+      RETVAL
+
+SV *
+get_uuid_string(net)
+      virNetworkPtr net;
+  PREINIT:
+      char uuid[36];
+    CODE:
+      if ((virNetworkGetUUIDString(net, uuid)) < 0) {
+	_croak_error(virConnGetLastError(virNetworkGetConnect(net)));
+      }
+
+      RETVAL = newSVpv(uuid, 0);
+  OUTPUT:
+      RETVAL
+
+const char *
+get_name(net)
+      virNetworkPtr net;
+    CODE:
+      if (!(RETVAL = virNetworkGetName(net))) {
+	_croak_error(virConnGetLastError(virNetworkGetConnect(net)));
+      }
+  OUTPUT:
+      RETVAL
+
+
+SV *
+get_bridge_name(net)
+      virNetworkPtr net;
+  PREINIT:
+      char *name;
+    CODE:
+      if (!(name = virNetworkGetBridgeName(net))) {
+	 _croak_error(virConnGetLastError(virNetworkGetConnect(net)));
+      }
+      RETVAL = newSVpv(name, 0);
+      free(name);
+  OUTPUT:
+      RETVAL
+
+SV *
+get_xml_description(net)
+      virNetworkPtr net;
+  PREINIT:
+      char *xml;
+    CODE:
+      if (!(xml = virNetworkGetXMLDesc(net, 0))) {
+	 _croak_error(virConnGetLastError(virNetworkGetConnect(net)));
+      }
+      RETVAL = newSVpv(xml, 0);
+      free(xml);
+  OUTPUT:
+      RETVAL
+
+void
+undefine(net)
+      virNetworkPtr net;
+    PPCODE:
+      if (virNetworkUndefine(net) < 0) {
+	_croak_error(virConnGetLastError(virNetworkGetConnect(net)));
+      }
+
+void
+create(net)
+      virNetworkPtr net;
+    PPCODE:
+      if (virNetworkCreate(net) < 0) {
+	_croak_error(virConnGetLastError(virNetworkGetConnect(net)));
+      }
+
+void
+destroy(net_rv)
+      SV *net_rv;
+ PREINIT:
+      virNetworkPtr net;
+  PPCODE:
+      net = (virNetworkPtr)SvIV((SV*)SvRV(net_rv));
+      if (virNetworkDestroy(net) < 0) {
+	_croak_error(virConnGetLastError(virNetworkGetConnect(net)));
+      }
+      sv_setref_pv(net_rv, "Sys::Virt::Network", NULL);
+
+void
+DESTROY(net_rv)
+      SV *net_rv;
+ PREINIT:
+      virNetworkPtr net;
+  PPCODE:
+      net = (virNetworkPtr)SvIV((SV*)SvRV(net_rv));
+      if (net) {
+	virNetworkFree(net);
       }
 
 
@@ -500,10 +783,4 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_SHUTDOWN, STATE_SHUTDOWN);
       REGISTER_CONSTANT(VIR_DOMAIN_SHUTOFF, STATE_SHUTOFF);
       REGISTER_CONSTANT(VIR_DOMAIN_CRASHED, STATE_CRASHED);
-
-      REGISTER_CONSTANT(VIR_DOMAIN_DESTROY, REBOOT_DESTROY);
-      REGISTER_CONSTANT(VIR_DOMAIN_RESTART, REBOOT_RESTART);
-      REGISTER_CONSTANT(VIR_DOMAIN_PRESERVE, REBOOT_PRESERVE);
-      REGISTER_CONSTANT(VIR_DOMAIN_RENAME_RESTART, REBOOT_RENAME_RESTART);
-
     }

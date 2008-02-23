@@ -1,3 +1,22 @@
+# -*- perl -*-
+#
+# Copyright (C) 2006 Red Hat
+# Copyright (C) 2006-2007 Daniel P. Berrange
+#
+# This program is free software; You can redistribute it and/or modify
+# it under either:
+#
+# a) the GNU General Public License as published by the Free
+#   Software Foundation; either version 2, or (at your option) any
+#   later version,
+#
+# or
+#
+# b) the "Artistic License"
+#
+# The file "LICENSE" distributed along with this file provides full
+# details of the terms and conditions of the two licenses.
+
 =pod
 
 =head1 NAME
@@ -124,7 +143,7 @@ completes and should not be used again.
 =item my $info = $dom->get_info()
 
 Returns a hash reference summarising the execution state of the
-domain. The elements of the hash ar
+domain. The elements of the hash are as follows:
 
 =over 4
 
@@ -136,7 +155,11 @@ The maximum memory allowed for this domain, in kilobytes
 
 The current memory allocated to the domain in kilobytes
 
-=item nrVirtCpus
+=item cpuTime
+
+The amount of CPU time used by the domain
+
+=item nrVirtCpu
 
 The current number of virtual CPUs enabled in the domain
 
@@ -150,7 +173,7 @@ constants &Sys::Virt::Domain::STATE_*.
 =item $dom->set_max_memory($mem)
 
 Set the maximum memory for the domain to the value C<$mem>. The
-value of the C<$mem> parameter is specified in kilobytes
+value of the C<$mem> parameter is specified in kilobytes.
 
 =item $mem = $dom->get_max_memory()
 
@@ -165,16 +188,21 @@ must be less than, or equal to the domain's max memory limit.
 
 =item $dom->shutdown()
 
-Request that the guest OS perform a gracefull shutdown and
+Request that the guest OS perform a graceful shutdown and
 poweroff.
 
 =item $dom->reboot($flags)
 
-Request that the guest OS perform a gracefull shutdown and
+Request that the guest OS perform a graceful shutdown and
 optionally restart. The C<$flags> parameter determines how
 the domain restarts (if at all). It should be one of the
 constants &Sys::Virt::Domain::REBOOT_* listed later in this
 document.
+
+=item $dom->get_max_vcpus()
+
+Return the maximum number of vcpus that are configured
+for the domain
 
 =cut
 
@@ -269,11 +297,18 @@ after shutdown is complete
 
 Daniel P. Berrange <berrange@redhat.com>
 
-=head1 COPYRIGHT / LICENSE
+=head1 COPYRIGHT
 
 Copyright (C) 2006 Red Hat
+Copyright (C) 2006-2007 Daniel P. Berrange
 
-Sys::Virt is distributed under the terms of the GPLv2 or later
+=head1 LICENSE
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of either the GNU General Public License as published
+by the Free Software Foundation (either version 2 of the License, or at
+your option any later version), or, the Artistic License, as specified
+in the Perl README file.
 
 =head1 SEE ALSO
 
