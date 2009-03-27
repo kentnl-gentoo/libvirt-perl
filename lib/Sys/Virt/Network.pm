@@ -50,11 +50,11 @@ sub _new {
     if (exists $params{name}) {
 	$self = Sys::Virt::Network::_lookup_by_name($con,  $params{name});
     } elsif (exists $params{uuid}) {
-	if (len($params{uuid} == 16)) {
+	if (length($params{uuid}) == 16) {
 	    $self = Sys::Virt::Network::_lookup_by_uuid($con,  $params{uuid});
-	} elsif (len($params{uuid} == 32) ||
-		 len($params{uuid} == 36)) {
-	    $self = Sys::Virt::Network::_lookup_by_uuid_striing($con,  $params{uuid});
+	} elsif (length($params{uuid}) == 32 ||
+		 length($params{uuid}) == 36) {
+	    $self = Sys::Virt::Network::_lookup_by_uuid_string($con,  $params{uuid});
 	} else {
 	    die "UUID must be either 16 unsigned bytes, or 32/36 hex characters long";
 	}
@@ -62,7 +62,7 @@ sub _new {
 	if ($params{nocreate}) {
 	    $self = Sys::Virt::Network::_define_xml($con,  $params{xml});
 	} else {
-	    $self = Sys::Virt::Network::_create_linux($con,  $params{xml});
+	    $self = Sys::Virt::Network::_create_xml($con,  $params{xml});
 	}
     } else {
 	die "address, id or uuid parameters are required";
@@ -116,28 +116,18 @@ completes and should not be used again.
 Return the name of the bridge device associated with the virtual
 network
 
+=item $flag = $net->get_autostart();
+
+Return a true value if the virtual network is configured to automatically
+start upon boot. Return false, otherwise
+
+=item $net->set_autostart($flag)
+
+Set the state of the autostart flag, which determines whether the
+virtual network will automatically start upon boot of the host OS.
+
+
 =cut
-
-
-sub AUTOLOAD {
-    # This AUTOLOAD is used to 'autoload' constants from the constant()
-    # XS function.
-
-    my $constname;
-    our $AUTOLOAD;
-    ($constname = $AUTOLOAD) =~ s/.*:://;
-
-    die "&Sys::Virt::Network::constant not defined" if $constname eq '_constant';
-    if (!exists $Sys::Virt::Network::_constants{$constname}) {
-	die "no such constant \$" . __PACKAGE__ . "::$constname";
-    }
-
-    {
-	no strict 'refs';
-	*$AUTOLOAD = sub { $Sys::Virt::Network::_constants{$constname} };
-    }
-    goto &$AUTOLOAD;
-}
 
 
 1;

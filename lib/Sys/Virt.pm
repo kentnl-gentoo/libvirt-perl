@@ -62,8 +62,11 @@ use warnings;
 use Sys::Virt::Error;
 use Sys::Virt::Domain;
 use Sys::Virt::Network;
+use Sys::Virt::StoragePool;
+use Sys::Virt::StorageVol;
+use Sys::Virt::NodeDevice;
 
-our $VERSION = '0.1.2';
+our $VERSION = '0.2.0';
 require XSLoader;
 XSLoader::load('Sys::Virt', $VERSION);
 
@@ -109,6 +112,53 @@ defaults to making a fully privileged connection to the VMM. If the
 calling application is not running as root, it may be neccessary to
 provide authentication callbacks.
 
+If the optional C<auth> parameter is set to a non-zero value,
+authentication will be enabled during connection, using the
+default set of credential gathering callbacks. The default
+callbacks prompt for credentials on the console, so are not
+suitable for graphical applications. For such apps a custom
+implementation should be supplied. The C<credlist> parameter
+should be an array reference listing the set of credential
+types that will be supported. The credential constants in
+this module can be used as values in this list. The C<callback>
+parameter should be a subroutine reference containing the
+code neccessary to gather the credentials. When invoked it
+will be supplied with a single parameter, a array reference
+of requested credentials. The elements of the array are
+hash references, with keys C<type> giving the type of
+credential, C<prompt> giving a user descriptive user
+prompt, C<challenge> giving name of the credential
+required. The answer should be collected from the user, and
+returned by setting the C<result> key. This key may already
+be set with a default result if applicable
+
+As a simple example returning hardcoded credentials
+
+    my $address  = "qemu+tcp://192.168.122.1/system";
+    my $username = "test";
+    my $password = "123456";
+
+    my $con = Sys::Virt->new(address => $address,
+                             auth => 1,
+                             credlist => [
+                               Sys::Virt::CRED_AUTHNAME,
+                               Sys::Virt::CRED_PASSPHRASE,
+                             ],
+                             callback =>
+         sub {
+               my $creds = shift;
+
+               foreach my $cred (@{$creds}) {
+                  if ($cred->{type} == Sys::Virt::CRED_AUTHNAME) {
+                      $cred->{result} = $username;
+                  }
+                  if ($cred->{type} == Sys::Virt::CRED_PASSPHRASE) {
+                      $cred->{result} = $password;
+                  }
+               }
+               return 0;
+         });
+
 =cut
 
 sub new {
@@ -118,7 +168,18 @@ sub new {
 
     my $uri = exists $params{address} ? $params{address} : exists $params{uri} ? $params{uri} : "";
     my $readonly = exists $params{readonly} ? $params{readonly} : 0;
-    my $self = Sys::Virt::_open($uri, $readonly);
+    my $auth = exists $params{auth} ? $params{auth} : 0;
+
+    my $authcb = exists $params{callback} ? $params{callback} : undef;
+    my $credlist = exists $params{credlist} ? $params{credlist} : undef;
+
+    my $self;
+
+    if ($auth) {
+	$self = Sys::Virt::_open_auth($uri, $readonly, $credlist, $authcb);
+    } else {
+	$self = Sys::Virt::_open($uri, $readonly);
+    }
 
     bless $self, $class;
 
@@ -147,7 +208,7 @@ sub create_domain {
 Defines, but does not start, a new domain based on the XML description
 passed into the C<$xml> parameter. The returned object is an instance
 of the L<Sys::Virt::Domain> class. This method is not available with
-unprivileged connections to the VMM. The define can be later started
+unprivileged connections to the VMM. The defined domain can be later started
 by calling the C<create> method on the returned C<Sys::Virt::Domain>
 object.
 
@@ -181,7 +242,7 @@ sub create_network {
 Defines, but does not start, a new network based on the XML description
 passed into the C<$xml> parameter. The returned object is an instance
 of the L<Sys::Virt::Network> class. This method is not available with
-unprivileged connections to the VMM. The define can be later started
+unprivileged connections to the VMM. The defined network can be later started
 by calling the C<create> method on the returned C<Sys::Virt::Network>
 object.
 
@@ -192,6 +253,40 @@ sub define_network {
     my $xml = shift;
 
     return Sys::Virt::Network->_new(connection => $self, xml => $xml, nocreate => 1);
+}
+
+=item my $dom = $vmm->create_storage_pool($xml);
+
+Create a new storage pool based on the XML description passed into the C<$xml>
+parameter. The returned object is an instance of the L<Sys::Virt::StoragePool>
+class. This method is not available with unprivileged connections to
+the VMM.
+
+=cut
+
+sub create_storage_pool {
+    my $self = shift;
+    my $xml = shift;
+
+    return Sys::Virt::StoragePool->_new(connection => $self, xml => $xml);
+}
+
+=item my $dom = $vmm->define_storage_pool($xml);
+
+Defines, but does not start, a new storage pol based on the XML description
+passed into the C<$xml> parameter. The returned object is an instance
+of the L<Sys::Virt::StoragePool> class. This method is not available with
+unprivileged connections to the VMM. The defined pool can be later started
+by calling the C<create> method on the returned C<Sys::Virt::StoragePool>
+object.
+
+=cut
+
+sub define_storage_pool {
+    my $self = shift;
+    my $xml = shift;
+
+    return Sys::Virt::StoragePool->_new(connection => $self, xml => $xml, nocreate => 1);
 }
 
 =item my @doms = $vmm->list_domains()
@@ -255,20 +350,15 @@ sub list_defined_domains {
     return @domains;
 }
 
-=item my $nids = $vmm->num_of_defined_domains()
+=item my $nnames = $vmm->num_of_defined_domains()
 
 Return the number of running domains known to the VMM. This can be
 used as the C<maxnames> parameter to C<list_defined_domain_names>.
 
-=item my @doms = $vmm->list_defined_domain_names($maxnames)
+=item my @names = $vmm->list_defined_domain_names($maxnames)
 
 Return a list of names of all domains defined, but not currently running, on
 the VMM. The names can be used with the C<get_domain_by_name> method.
-
-=item my $dom = $vmm->get_domain_by_name($name)
-
-Return the domain with a name of C<$name>. The returned object is
-an instance of the L<Sys::Virt::Domain> class.
 
 =item my @nets = $vmm->list_networks()
 
@@ -302,8 +392,8 @@ used as the C<maxids> parameter to C<list_network_ids>.
 
 =item my @netNames = $vmm->list_network_names($maxnames)
 
-Return a list of all network IDs currently known to the VMM. The IDs can
-be used with the C<get_network_by_id> method.
+Return a list of all network names currently known to the VMM. The names can
+be used with the C<get_network_by_name> method.
 
 =item my @nets = $vmm->list_defined_networks()
 
@@ -331,15 +421,121 @@ sub list_defined_networks {
     return @networks;
 }
 
-=item my $nids = $vmm->num_of_defined_networks()
+=item my $nnamess = $vmm->num_of_defined_networks()
 
-Return the number of running networks known to the VMM. This can be
+Return the number of running networks known to the host. This can be
 used as the C<maxnames> parameter to C<list_defined_network_names>.
 
-=item my @doms = $vmm->list_defined_network_names($maxnames)
+=item my @names = $vmm->list_defined_network_names($maxnames)
 
 Return a list of names of all networks defined, but not currently running, on
-the VMM. The names can be used with the C<get_network_by_name> method.
+the host. The names can be used with the C<get_network_by_name> method.
+
+=item my @pools = $vmm->list_storage_pools()
+
+Return a list of all storage pools currently known to the host. The elements
+in the returned list are instances of the L<Sys::Virt::StoragePool> class.
+
+=cut
+
+sub list_storage_pools {
+    my $self = shift;
+
+    my $nnames = $self->num_of_storage_pools();
+    my @names = $self->list_storage_pool_names($nnames);
+
+    my @pools;
+    foreach my $name (@names) {
+	eval {
+	    push @pools, Sys::Virt::StoragePool->_new(connection => $self, name => $name);
+	};
+	if ($@) {
+	    # nada - storage pool went away before we could look it up
+	};
+    }
+    return @pools;
+}
+
+=item my $nnames = $vmm->num_of_storage_pools()
+
+Return the number of running storage pools known to the VMM. This can be
+used as the C<maxids> parameter to C<list_storage_pool_names>.
+
+=item my @poolNames = $vmm->list_storage_pool_names($maxnames)
+
+Return a list of all storage pool names currently known to the VMM. The IDs can
+be used with the C<get_network_by_id> method.
+
+=item my @pools = $vmm->list_defined_storage_pools()
+
+Return a list of all storage pools defined, but not currently running, on the
+host. The elements in the returned list are instances of the
+L<Sys::Virt::StoragePool> class.
+
+=cut
+
+sub list_defined_storage_pools {
+    my $self = shift;
+
+    my $nnames = $self->num_of_defined_storage_pools();
+    my @names = $self->list_defined_storage_pool_names($nnames);
+
+    my @pools;
+    foreach my $name (@names) {
+	eval {
+	    push @pools, Sys::Virt::StoragePool->_new(connection => $self, name => $name);
+	};
+	if ($@) {
+	    # nada - storage pool went away before we could look it up
+	};
+    }
+    return @pools;
+}
+
+=item my $nnames = $vmm->num_of_defined_storage_pools()
+
+Return the number of running networks known to the host. This can be
+used as the C<maxnames> parameter to C<list_defined_storage_pool_names>.
+
+=item my @names = $vmm->list_defined_storage_pool_names($maxnames)
+
+Return a list of names of all storage pools defined, but not currently running, on
+the host. The names can be used with the C<get_storage_pool_by_name> method.
+
+=item my @devs = $vmm->list_node_devices()
+
+Return a list of all devices currently known to the host OS. The elements
+in the returned list are instances of the L<Sys::Virt::NodeDevice> class.
+
+=cut
+
+sub list_node_devices {
+    my $self = shift;
+
+    my $nnames = $self->num_of_node_devices();
+    my @names = $self->list_node_devices($nnames);
+
+    my @devs;
+    foreach my $name (@names) {
+	eval {
+	    push @devs, Sys::Virt::NodeDevice->_new(connection => $self, name => $name);
+	};
+	if ($@) {
+	    # nada - device went away before we could look it up
+	};
+    }
+    return @devs;
+}
+
+=item my $nnames = $vmm->num_of_node_devices()
+
+Return the number of host devices known to the VMM. This can be
+used as the C<maxids> parameter to C<list_node_device_names>.
+
+=item my @netNames = $vmm->list_node_device_names($maxnames)
+
+Return a list of all host device names currently known to the VMM. The names can
+be used with the C<get_node_device_by_name> method.
 
 =item my $dom = $vmm->get_domain_by_name($name)
 
@@ -387,7 +583,7 @@ sub get_domain_by_uuid {
     return Sys::Virt::Domain->_new(connection => $self, uuid => $uuid);
 }
 
-=item my $dom = $vmm->get_network_by_name($name)
+=item my $net = $vmm->get_network_by_name($name)
 
 Return the network with a name of C<$name>. The returned object is
 an instance of the L<Sys::Virt::Network> class.
@@ -402,7 +598,7 @@ sub get_network_by_name {
 }
 
 
-=item my $dom = $vmm->get_network_by_uuid($uuid)
+=item my $net = $vmm->get_network_by_uuid($uuid)
 
 Return the network with a globally unique id of C<$uuid>. The returned object is
 an instance of the L<Sys::Virt::Network> class.
@@ -416,6 +612,58 @@ sub get_network_by_uuid {
     return Sys::Virt::Network->_new(connection => $self, uuid => $uuid);
 }
 
+=item my $pool = $vmm->get_storage_pool_by_name($name)
+
+Return the storage pool with a name of C<$name>. The returned object is
+an instance of the L<Sys::Virt::StoragePool> class.
+
+=cut
+
+sub get_storage_pool_by_name {
+    my $self = shift;
+    my $name = shift;
+
+    return Sys::Virt::StoragePool->_new(connection => $self, name => $name);
+}
+
+
+=item my $pool = $vmm->get_storage_pool_by_uuid($uuid)
+
+Return the storage pool with a globally unique id of C<$uuid>. The returned object is
+an instance of the L<Sys::Virt::StoragePool> class.
+
+=cut
+
+sub get_storage_pool_by_uuid {
+    my $self = shift;
+    my $uuid = shift;
+
+    return Sys::Virt::StoragePool->_new(connection => $self, uuid => $uuid);
+}
+
+=item my $dev = $vmm->get_node_device_by_name($name)
+
+Return the node device with a name of C<$name>. The returned object is
+an instance of the L<Sys::Virt::NodeDevice> class.
+
+=cut
+
+sub get_node_device_by_name {
+    my $self = shift;
+    my $name = shift;
+
+    return Sys::Virt::NodeDevice->_new(connection => $self, name => $name);
+}
+
+
+=item my $xml = $vmm->find_storage_pool_sources($type, $srcspec, $flags)
+
+Probe for available storage pool sources for the pool of type C<$type>.
+The C<$srcspec> parameter can be C<undef>, or a parameter to refine the
+discovery process, for example a server hostname for NFS discovery. The
+C<$flags> parameter can usually be left as zero. The return scalar is
+an XML document describing the discovered storage pool sources.
+
 =item $vmm->restore_domain($savefile)
 
 Recreate a domain from the saved state file given in the C<$savefile> parameter.
@@ -425,9 +673,15 @@ Recreate a domain from the saved state file given in the C<$savefile> parameter.
 Return the maximum number of vcpus that can be configured for a domain
 of type C<$domtype>
 
-=item $vmm->get_hostname()
+=item my $hostname = $vmm->get_hostname()
 
 Return the name of the host with which this connection is associated.
+
+=item my $uri = $vmm->get_uri()
+
+Return the URI associated with the open connection. This may be different
+from the URI used when initially connecting to libvirt, when 'auto-probing'
+or drivers occurrs.
 
 =item my $type = $vmm->get_type()
 
@@ -476,6 +730,15 @@ sub get_micro_version {
     return $self->get_version % 1000;
 }
 
+sub get_version {
+    my $self = shift;
+    if (defined $self) {
+	return $self->_get_conn_version;
+    } else {
+	return &Sys::Virt::_get_library_version();
+    }
+}
+
 1;
 
 =pod
@@ -484,6 +747,23 @@ sub get_micro_version {
 
 Returns a hash reference summarising the capabilities of the host
 node. The elements of the hash are as follows:
+
+=item $conn->domain_event_register($callback)
+
+Register a callback to received notificaitons of domain state change
+events. Only a single callback can be registered with each connection
+instance. The callback will be invoked with four paramters, an
+instance of C<Sys::Virt> for the connection, an instance of C<Sys::Virt::Domain>
+for the domain changing state, and a C<event> and C<detail> arguments,
+corresponding to the event constants defined in the C<Sys::Virt::Domain>
+module. Before discarding the connection object, the callback must be
+deregistered, otherwise the connection object memory will never be
+released in garbage collection.
+
+=item $conn->domain_event_deregister()
+
+Unregister a callback, allowing the connection object to be garbage
+collected.
 
 =over 4
 
@@ -521,9 +801,74 @@ The number of threads per core
 
 =back
 
+=item my $info = $con->get_node_security_model()
+
+Returns a hash reference summarising the security model of the
+host node. There are two keys in the hash, C<model> specifying
+the name of the security model (eg 'selinux') and C<doi>
+specifying the 'domain of interpretation' for security labels.
+
 =item my $xml = $con->get_capabilities();
 
 Returns an XML document describing the hypervisor capabilities
+
+=item $mem = $con->get_node_free_memory();
+
+Returns the current free memory on the host
+
+=item @mem = $con->get_node_cells_free_memory($start, $end);
+
+Returns the free memory on each NUMA cell between C<$start> and C<$end>.
+
+=back
+
+=head1 CONSTANTS
+
+The following sets of constants are useful when dealing with APIs
+in this package
+
+=head2 CREDENTIAL TYPES
+
+When providing authentication callbacks, the following constants
+indicate the type of credential being requested
+
+=over 4
+
+=item Sys::Virt::CRED_AUTHNAME
+
+Identity to act as
+
+=item Sys::Virt::CRED_USERNAME
+
+Identity to authorize as
+
+=item Sys::Virt::CRED_CNONCE
+
+Client supplies a nonce
+
+=item Sys::Virt::CRED_REALM
+
+Authentication realm
+
+=item Sys::Virt::CRED_ECHOPROMPT
+
+Challenge response non-secret
+
+=item Sys::Virt::CRED_NOECHOPROMPT
+
+Challenge response secret
+
+=item Sys::Virt::CRED_PASSPHRASE
+
+Passphrase secret
+
+=item Sys::Virt::CRED_LANGUAGE
+
+RFC 1766 language code
+
+=item Sys::Virt::CRED_EXTERNAL
+
+Externally provided credential
 
 =back
 
@@ -538,8 +883,8 @@ Daniel P. Berrange <berrange@redhat.com>
 
 =head1 COPYRIGHT
 
-Copyright (C) 2006 Red Hat
-Copyright (C) 2006-2007 Daniel P. Berrange
+Copyright (C) 2006-2009 Red Hat
+Copyright (C) 2006-2009 Daniel P. Berrange
 
 =head1 LICENSE
 
@@ -551,6 +896,7 @@ in the Perl README file.
 
 =head1 SEE ALSO
 
-L<Sys::Virt::Domain>, L<Sys::Virt::Network>, L<Sys::Virt::Error>, C<http://libvirt.org>
+L<Sys::Virt::Domain>, L<Sys::Virt::Network>, L<Sys::Virt::StoragePool>,
+L<Sys::Virt::StorageVol>, L<Sys::Virt::Error>, C<http://libvirt.org>
 
 =cut

@@ -3,13 +3,12 @@
 use strict;
 use warnings;
 
-use Test::More tests => 27;
+use Test::More tests => 38;
 use XML::XPath;
 use XML::XPath::XMLParser;
 
 BEGIN {
         use_ok('Sys::Virt');
-        use_ok('Sys::Virt::Domain');
 }
 
 
@@ -29,7 +28,21 @@ isa_ok($dom, "Sys::Virt::Domain");
 
 is($dom->get_name, "test", "name");
 is($dom->get_id, "1", "id");
-is($dom->get_uuid_string, "004b96e1-2d78-c30f-5aa5-f03c87d21e69", "uuid");
+
+# Lookup again via UUID to verify we get the same
+my $uuid = $dom->get_uuid();
+
+my $dom2 = $conn->get_domain_by_uuid($uuid);
+isa_ok($dom2, "Sys::Virt::Domain");
+is($dom2->get_name, "test", "name");
+is($dom2->get_id, "1", "id");
+
+my $uuidstr = $dom->get_uuid_string();
+
+my $dom3 = $conn->get_domain_by_uuid($uuidstr);
+isa_ok($dom3, "Sys::Virt::Domain");
+is($dom3->get_name, "test", "name");
+is($dom3->get_id, "1", "id");
 
 my @doms = $conn->list_domains();
 is($#doms, 0, "one domain");
@@ -45,6 +58,9 @@ my $xml = "<domain type='test'>
   <memory>10241024</memory>
   <currentMemory>1024120</currentMemory>
   <vcpu>4</vcpu>
+  <os>
+    <type>hvm</type>
+  </os>
 </domain>";
 
 
@@ -79,7 +95,30 @@ is($info->{maxMem}, "10241024", "max mem");
 is($info->{nrVirtCpu}, "4", "vcpu");
 is($info->{state}, &Sys::Virt::Domain::STATE_RUNNING, "state");
 
+my $params = $dom->get_scheduler_parameters();
+
+ok(exists $params->{"weight"}, "weight param");
+is($params->{"weight"}, 50, "weight param is 50");
+
+$dom->set_scheduler_parameters({weight  => 20 });
+
+$params = $dom->get_scheduler_parameters();
+
+ok(exists $params->{"weight"}, "weight param");
+# Temp disabled because test driver is not persisting the set request
+SKIP: {
+    skip "avoid bug in test driver sched params", 1;
+    is($params->{"weight"}, 20, "weight param is now 20");
+}
+
 $dom->destroy();
+
+#my $free = $conn->get_node_free_memory();
+#print STDERR $free;
+my @mem = $conn->get_node_cells_free_memory(0, 8);
+is($#mem, 1, "2 cells");
+is($mem[0], 2097152, "mem in cell 1");
+is($mem[1], 4194304, "mem in cell 2");
 
 
 $nids = $conn->num_of_domains();
@@ -98,4 +137,5 @@ is($nname, 0, "0 defined domain");
 
 @names = $conn->list_defined_domain_names($nname);
 is_deeply(\@names, [], "names");
+
 

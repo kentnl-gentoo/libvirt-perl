@@ -1,7 +1,7 @@
 --- #YAML:1.0
 name:         Sys-Virt
 abstract:     Extension for the libvirt library
-version:      0.1.2
+version:      0.2.0
 author:
   - Daniel P. Berrange <dan@berrange.com>
 license: gpl
@@ -13,6 +13,7 @@ build_requires:
    XML::XPath:                    0
    XML::XPath::XMLParser:         0
    Sys::Hostname:                 0
+   Time::HiRes:                   0
 
 resources:
   license: http://www.gnu.org/licenses/gpl.html
