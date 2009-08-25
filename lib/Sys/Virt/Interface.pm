@@ -1,7 +1,7 @@
 # -*- perl -*-
 #
 # Copyright (C) 2006-2009 Red Hat
-# Copyright (C) 2006-2009 Daniel P. Berrange
+# Copyright (C) 2006-2007 Daniel P. Berrange
 #
 # This program is free software; You can redistribute it and/or modify
 # it under either:
@@ -21,14 +21,12 @@
 
 =head1 NAME
 
-Sys::Virt::NodeDevice - Represent & manage a libvirt storage pool
+Sys::Virt::Interface - Represent & manage a libvirt host network interface
 
 =head1 DESCRIPTION
 
-The C<Sys::Virt::NodeDevice> module represents a storage pool managed
-by libvirt. There are a variety of storage pool implementations for
-LVM, Local directories/filesystems, network filesystems, disk
-partitioning, iSCSI, and SCSI.
+The C<Sys::Virt::Interface> module represents a host network interface
+allowing configuration of IP addresses, bonding, vlans and bridges.
 
 =head1 METHODS
 
@@ -36,7 +34,7 @@ partitioning, iSCSI, and SCSI.
 
 =cut
 
-package Sys::Virt::NodeDevice;
+package Sys::Virt::Interface;
 
 use strict;
 use warnings;
@@ -50,11 +48,13 @@ sub _new {
     my $con = exists $params{connection} ? $params{connection} : die "connection parameter is requried";
     my $self;
     if (exists $params{name}) {
-	$self = Sys::Virt::NodeDevice::_lookup_by_name($con,  $params{name});
+	$self = Sys::Virt::Interface::_lookup_by_name($con,  $params{name});
+    } elsif (exists $params{mac}) {
+	$self = Sys::Virt::Interface::_lookup_by_mac($con,  $params{uuid});
     } elsif (exists $params{xml}) {
-	$self = Sys::Virt::NodeDevice::_create_xml($con, $params{xml});
+	$self = Sys::Virt::Interface::_define_xml($con,  $params{xml});
     } else {
-	die "name parameter is required";
+	die "name, mac or xml parameters are required";
     }
 
     bless $self, $class;
@@ -63,41 +63,36 @@ sub _new {
 }
 
 
-=item my $name = $dev->get_name()
+=item my $name = $iface->get_name()
 
-Returns a string with a locally unique name of the device
+Returns a string with a locally unique name of the network
 
-=item my $parentname = $dev->get_parent()
+=item my $name = $iface->get_mac()
 
-Returns a string with a locally unique name of the parent
-of the device, or undef if there is no parent
+Returns a string with the hardware MAC address of the interface
 
-=item my $xml = $dev->get_xml_description()
+=item my $xml = $iface->get_xml_description()
 
 Returns an XML document containing a complete description of
-the storage dev's configuration
+the network's configuration
 
-=item $dev->reattach()
+=item $iface->create()
 
-Rebind the node device to the host OS device drivers.
+Start a network whose configuration was previously defined using the
+C<define_network> method in L<Sys::Virt>.
 
-=item $dev->dettach()
+=item $iface->undefine()
 
-Unbind the node device from the host OS device driver
+Remove the configuration associated with a network previously defined
+with the C<define_network> method in L<Sys::Virt>. If the network is
+running, you probably want to use the C<shutdown> or C<destroy>
+methods instead.
 
-=item $dev->reset()
+=item $iface->destroy()
 
-Reset the node device. The device must be unbound from the host
-OS drivers for this to work
-
-=item $dev->destroy()
-
-Destroy the virtual device releasing any OS resources associated
-with it.
-
-=item my @caps = $dev->list_capabilities()
-
-Return a list of all capabilities in the device.
+Immediately terminate the machine, and remove it from the virtual
+machine monitor. The C<$iface> handle is invalid after this call
+completes and should not be used again.
 
 =cut
 
@@ -113,7 +108,7 @@ Daniel P. Berrange <berrange@redhat.com>
 =head1 COPYRIGHT
 
 Copyright (C) 2006-2009 Red Hat
-Copyright (C) 2006-2009 Daniel P. Berrange
+Copyright (C) 2006-2007 Daniel P. Berrange
 
 =head1 LICENSE
 

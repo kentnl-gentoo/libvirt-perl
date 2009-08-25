@@ -1,6 +1,7 @@
 AUTHORS
 CHANGES
 examples/auth.pl
+examples/devices.pl
 examples/dump-info.pl
 examples/dump-xml.pl
 examples/hv-stat.pl
@@ -10,6 +11,7 @@ lib/Sys/Virt.pm
 lib/Sys/Virt/Domain.pm
 lib/Sys/Virt/Error.pm
 lib/Sys/Virt/Event.pm
+lib/Sys/Virt/Interface.pm
 lib/Sys/Virt/Network.pm
 lib/Sys/Virt/NodeDevice.pm
 lib/Sys/Virt/StoragePool.pm

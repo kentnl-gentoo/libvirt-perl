@@ -66,7 +66,7 @@ use Sys::Virt::StoragePool;
 use Sys::Virt::StorageVol;
 use Sys::Virt::NodeDevice;
 
-our $VERSION = '0.2.0';
+our $VERSION = '0.2.1';
 require XSLoader;
 XSLoader::load('Sys::Virt', $VERSION);
 
@@ -166,7 +166,7 @@ sub new {
     my $class = ref($proto) || $proto;
     my %params = @_;
 
-    my $uri = exists $params{address} ? $params{address} : exists $params{uri} ? $params{uri} : "";
+    my $uri = exists $params{address} ? $params{address} : exists $params{uri} ? $params{uri} : undef;
     my $readonly = exists $params{readonly} ? $params{readonly} : 0;
     my $auth = exists $params{auth} ? $params{auth} : 0;
 
@@ -288,6 +288,23 @@ sub define_storage_pool {
 
     return Sys::Virt::StoragePool->_new(connection => $self, xml => $xml, nocreate => 1);
 }
+
+=item my $dom = $vmm->create_node_device($xml);
+
+Create a new virtual node device based on the XML description passed into the
+C<$xml> parameter. The returned object is an instance of the L<Sys::Virt::NodeDevice>
+class. This method is not available with unprivileged connections to
+the VMM.
+
+=cut
+
+sub create_node_device {
+    my $self = shift;
+    my $xml = shift;
+
+    return Sys::Virt::NodeDevice->_new(connection => $self, xml => $xml);
+}
+
 
 =item my @doms = $vmm->list_domains()
 
@@ -502,18 +519,21 @@ used as the C<maxnames> parameter to C<list_defined_storage_pool_names>.
 Return a list of names of all storage pools defined, but not currently running, on
 the host. The names can be used with the C<get_storage_pool_by_name> method.
 
-=item my @devs = $vmm->list_node_devices()
+=item my @devs = $vmm->list_node_devices($capability)
 
 Return a list of all devices currently known to the host OS. The elements
 in the returned list are instances of the L<Sys::Virt::NodeDevice> class.
+The optional C<capability> parameter allows the list to be restricted to
+only devices with a particular capability type.
 
 =cut
 
 sub list_node_devices {
     my $self = shift;
+    my $cap = shift;
 
-    my $nnames = $self->num_of_node_devices();
-    my @names = $self->list_node_devices($nnames);
+    my $nnames = $self->num_of_node_devices($cap);
+    my @names = $self->list_node_device_names($cap, $nnames);
 
     my @devs;
     foreach my $name (@names) {
@@ -527,15 +547,54 @@ sub list_node_devices {
     return @devs;
 }
 
-=item my $nnames = $vmm->num_of_node_devices()
+=item my $nnames = $vmm->num_of_node_devices($capability)
 
 Return the number of host devices known to the VMM. This can be
 used as the C<maxids> parameter to C<list_node_device_names>.
+The optional C<capability> parameter allows the list to be restricted to
+only devices with a particular capability type.
 
-=item my @netNames = $vmm->list_node_device_names($maxnames)
+=item my @netNames = $vmm->list_node_device_names($capability, $maxnames)
 
 Return a list of all host device names currently known to the VMM. The names can
 be used with the C<get_node_device_by_name> method.
+The optional C<capability> parameter allows the list to be restricted to
+only devices with a particular capability type.
+
+=item my @ifaces = $vmm->list_interfaces()
+
+Return a list of all network interfaces currently known to the VMM. The elements
+in the returned list are instances of the L<Sys::Virt::Interface> class.
+
+=cut
+
+sub list_interfaces {
+    my $self = shift;
+
+    my $nnames = $self->num_of_interfaces();
+    my @names = $self->list_interface_names($nnames);
+
+    my @interfaces;
+    foreach my $name (@names) {
+	eval {
+	    push @interfaces, Sys::Virt::Interface->_new(connection => $self, name => $name);
+	};
+	if ($@) {
+	    # nada - interface went away before we could look it up
+	};
+    }
+    return @interfaces;
+}
+
+=item my $nnames = $vmm->num_of_interfaces()
+
+Return the number of running interfaces known to the VMM. This can be
+used as the C<maxnames> parameter to C<list_interface_names>.
+
+=item my @names = $vmm->list_interface_names($maxnames)
+
+Return a list of all interface names currently known to the VMM. The names can
+be used with the C<get_interface_by_name> method.
 
 =item my $dom = $vmm->get_domain_by_name($name)
 
@@ -656,6 +715,36 @@ sub get_node_device_by_name {
 }
 
 
+=item my $iface = $vmm->get_interface_by_name($name)
+
+Return the interface with a name of C<$name>. The returned object is
+an instance of the L<Sys::Virt::Interface> class.
+
+=cut
+
+sub get_interface_by_name {
+    my $self = shift;
+    my $name = shift;
+
+    return Sys::Virt::Interface->_new(connection => $self, name => $name);
+}
+
+
+=item my $iface = $vmm->get_interface_by_mac($mac)
+
+Return the interface with a MAC address of C<$mac>. The returned object is
+an instance of the L<Sys::Virt::Interface> class.
+
+=cut
+
+sub get_interface_by_mac {
+    my $self = shift;
+    my $mac = shift;
+
+    return Sys::Virt::Interface->_new(connection => $self, mac => $mac);
+}
+
+
 =item my $xml = $vmm->find_storage_pool_sources($type, $srcspec, $flags)
 
 Probe for available storage pool sources for the pool of type C<$type>.
@@ -687,6 +776,17 @@ or drivers occurrs.
 
 Return the type of virtualization backend accessed by this VMM object. Currently
 the only supported type is C<Xen>.
+
+=item my $xml = $vmm->domain_xml_from_native($format, $config);
+
+Convert the native hypervisor configuration C<$config> which is in format
+<$format> into libvirrt domain XML. Valid values of C<$format> vary between
+hypervisor drivers.
+
+=item my $config = $vmm->domain_xml_to_native($format, $xml)
+
+Convert the libvirt domain XML configuration C<$xml> to a native hypervisor
+configuration in format C<$format>
 
 =item my $ver = $vmm->get_version()
 
