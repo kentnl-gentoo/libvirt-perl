@@ -65,8 +65,9 @@ use Sys::Virt::Network;
 use Sys::Virt::StoragePool;
 use Sys::Virt::StorageVol;
 use Sys::Virt::NodeDevice;
+use Sys::Virt::Interface;
 
-our $VERSION = '0.2.1';
+our $VERSION = '0.2.2';
 require XSLoader;
 XSLoader::load('Sys::Virt', $VERSION);
 
@@ -287,6 +288,40 @@ sub define_storage_pool {
     my $xml = shift;
 
     return Sys::Virt::StoragePool->_new(connection => $self, xml => $xml, nocreate => 1);
+}
+
+=item my $dom = $vmm->create_interface($xml);
+
+Create a new interface based on the XML description passed into the C<$xml>
+parameter. The returned object is an instance of the L<Sys::Virt::Interface>
+class. This method is not available with unprivileged connections to
+the VMM.
+
+=cut
+
+sub create_interface {
+    my $self = shift;
+    my $xml = shift;
+
+    return Sys::Virt::Interface->_new(connection => $self, xml => $xml);
+}
+
+=item my $dom = $vmm->define_interface($xml);
+
+Defines, but does not start, a new interface based on the XML description
+passed into the C<$xml> parameter. The returned object is an instance
+of the L<Sys::Virt::Interface> class. This method is not available with
+unprivileged connections to the VMM. The defined interface can be later started
+by calling the C<create> method on the returned C<Sys::Virt::Interface>
+object.
+
+=cut
+
+sub define_interface {
+    my $self = shift;
+    my $xml = shift;
+
+    return Sys::Virt::Interface->_new(connection => $self, xml => $xml, nocreate => 1);
 }
 
 =item my $dom = $vmm->create_node_device($xml);
@@ -596,6 +631,41 @@ used as the C<maxnames> parameter to C<list_interface_names>.
 Return a list of all interface names currently known to the VMM. The names can
 be used with the C<get_interface_by_name> method.
 
+=item my @ifaces = $vmm->list_defined_interfaces()
+
+Return a list of all network interfaces currently known to the VMM. The elements
+in the returned list are instances of the L<Sys::Virt::Interface> class.
+
+=cut
+
+sub list_defined_interfaces {
+    my $self = shift;
+
+    my $nnames = $self->num_of_defined_interfaces();
+    my @names = $self->list_defined_interface_names($nnames);
+
+    my @interfaces;
+    foreach my $name (@names) {
+	eval {
+	    push @interfaces, Sys::Virt::Interface->_new(connection => $self, name => $name);
+	};
+	if ($@) {
+	    # nada - interface went away before we could look it up
+	};
+    }
+    return @interfaces;
+}
+
+=item my $nnames = $vmm->num_of_defined_interfaces()
+
+Return the number of inactive interfaces known to the VMM. This can be
+used as the C<maxnames> parameter to C<list_defined_interface_names>.
+
+=item my @names = $vmm->list_defined_interface_names($maxnames)
+
+Return a list of inactive interface names currently known to the VMM. The names can
+be used with the C<get_interface_by_name> method.
+
 =item my $dom = $vmm->get_domain_by_name($name)
 
 Return the domain with a name of C<$name>. The returned object is
@@ -698,6 +768,36 @@ sub get_storage_pool_by_uuid {
     my $uuid = shift;
 
     return Sys::Virt::StoragePool->_new(connection => $self, uuid => $uuid);
+}
+
+
+=item my $vol = $vmm->get_storage_volume_by_path($path)
+
+Return the storage volume with a location of C<$path>. The returned object is
+an instance of the L<Sys::Virt::StorageVol> class.
+
+=cut
+
+sub get_storage_volume_by_path {
+    my $self = shift;
+    my $path = shift;
+
+    return Sys::Virt::StorageVol->_new(connection => $self, path => $path);
+}
+
+
+=item my $vol = $vmm->get_storage_volume_by_key($key)
+
+Return the storage volume with a globally unique id of C<$key>. The returned object is
+an instance of the L<Sys::Virt::StorageVol> class.
+
+=cut
+
+sub get_storage_volume_by_key {
+    my $self = shift;
+    my $key = shift;
+
+    return Sys::Virt::StorageVol->_new(connection => $self, key => $key);
 }
 
 =item my $dev = $vmm->get_node_device_by_name($name)
