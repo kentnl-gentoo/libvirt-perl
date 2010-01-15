@@ -84,7 +84,7 @@ Return an informative message describing the error condition.
 
 sub message {
     my $self = shift;
-    return $self->{code}
+    return $self->{message}
 }
 
 
@@ -200,6 +200,30 @@ Xen Inotify events driver
 =item Sys::Virt::Error::FROM_XML
 
 Low level XML parser
+
+=item Sys::Virt::Error::FROM_ESX
+
+The VMWare ESX driver
+
+=item Sys::Virt::Error::FROM_INTERFACE
+
+The host network interface driver
+
+=item Sys::Virt::Error::FROM_ONE
+
+The Open Nebula driver
+
+=item Sys::Virt::Error::FROM_PHYP
+
+The IBM Power Hypervisor driver
+
+=item Sys::Virt::Error::FROM_SECRET
+
+The secret management driver
+
+=item Sys::Virt::Error::FROM_VBOX
+
+The VirtualBox driver
 
 =back
 
@@ -445,6 +469,35 @@ The requested operation is not valid for the current object state
 =item Sys::Virt::Error::WAR_NO_INTERFACE
 
 The network interface driver is not available
+
+=item Sys::Virt::Error::ERR_MULTIPLE_INTERFACES
+
+There are multiple interfaces with the requested MAC address
+
+=item Sys::Virt::Error::WAR_NO_SECRET
+
+There secret management driver is not available
+
+=item Sys::Virt::Error::ERR_NO_SECRET
+
+No secret with the matching uuid / usage ID
+
+=item Sys::Virt::Error::ERR_INVALID_SECRET
+
+Invalid secret object
+
+=item Sys::Virt::Error::ERR_CONFIG_UNSUPPORTED
+
+The requested XML configuration is not supported by the hypervisor
+
+=item Sys::Virt::Error::ERR_OPERATION_TIMEOUT
+
+The operation could not be completed in a satisfactory time
+
+=item Sys::Virt::Error::ERR_MIGRATE_PERSIST_FAILED
+
+Unable to persistent the domain configuration after migration
+successfully completed
 
 =back
 

@@ -95,6 +95,15 @@ Returns a printable string representation of the raw UUID, in the format
 
 Returns a string with a locally unique name of the domain
 
+=item $dom->is_active()
+
+Returns a true value if the domain is currently running
+
+=item $dom->is_persistent()
+
+Returns a true value if the domain has a persistent configuration
+file defined
+
 =item my $xml = $dom->get_xml_description()
 
 Returns an XML document containing a complete description of
@@ -134,10 +143,12 @@ the file named in the C<$filename> parameter. The domain can later
 be restored from this file with the C<restore_domain> method on
 the L<Sys::Virt> object.
 
-=item $dom->core_dump($filename)
+=item $dom->core_dump($filename[, $flags])
 
 Trigger a core dump of the guest virtual machine, saving its memory
 image to C<$filename> so it can be analysed by tools such as C<crash>.
+The optional C<$flags> flags parameter is currently unused and if
+omitted will default to 0.
 
 =item $dom->destroy()
 
@@ -196,13 +207,11 @@ must be less than, or equal to the domain's max memory limit.
 Request that the guest OS perform a graceful shutdown and
 poweroff.
 
-=item $dom->reboot($flags)
+=item $dom->reboot([$flags])
 
 Request that the guest OS perform a graceful shutdown and
-optionally restart. The C<$flags> parameter determines how
-the domain restarts (if at all). It should be one of the
-constants &Sys::Virt::Domain::REBOOT_* listed later in this
-document.
+optionally restart. The optional C<$flags> parameter is
+currently unused and if omitted defaults to zero.
 
 =item $dom->get_max_vcpus()
 
@@ -219,17 +228,19 @@ to the running guest.
 Hotunplug a existing device whose configuration is given by C<$xml>,
 from the running guest.
 
-=item $data = $dom->block_peek($path, $offset, $size)
+=item $data = $dom->block_peek($path, $offset, $size[, $flags)
 
 Peek into the guest disk C<$path>, at byte C<$offset> capturing
 C<$size> bytes of data. The returned scalar may contain embedded
-NULLs.
+NULLs. The optional C<$flags> parameter is currently unused and
+if omitted defaults to zero.
 
-=item $data = $dom->memory_peek($offset, $size)
+=item $data = $dom->memory_peek($offset, $size[, $flags])
 
 Peek into the guest memory at byte C<$offset> virtual address,
 capturing C<$size> bytes of memory. The return scalar may
-contain embedded NULLs.
+contain embedded NULLs. The optional C<$flags> parameter is
+currently unused and if omitted defaults to zero.
 
 =item $flag = $dom->get_autostart();
 
@@ -329,6 +340,40 @@ Total packets dropped at transmission.
 
 =back
 
+=item $dom->memory_stats($flags=0)
+
+Fetch the current memory statistics for the guest domain. The
+C<$flags> parameter is currently unused and can be omitted.
+The returned hash containins keys for
+
+=over 4
+
+=item C<swap_in>
+
+Data read from swap space
+
+=item C<swap_out>
+
+Data written to swap space
+
+=item C<major_fault>
+
+Page fault involving disk I/O
+
+=item C<minor_fault>
+
+Page fault not involving disk I/O
+
+=item C<unused>
+
+Memory not used by the system
+
+=item C<available>
+
+Total memory seen by guest
+
+=back
+
 =item %info = $dom->get_security_label()
 
 Fetch information about the security label assigned to the guest
@@ -350,7 +395,28 @@ with the C<destcon> connection. If the destination host is multi-homed
 it may be neccessary to supply an alternate destination hostame
 via the C<uri> parameter. The C<bandwidth> parameter allows network
 usage to be throttled during migration. If set to zero, no throttling
-will be performed.
+will be performed. The C<flags>, C<dname>, C<uri> and C<bandwidth>
+parameters are all optional, and if omitted default to zero, C<undef>,
+C<undef>, and zero respectively.
+
+
+=item $dom->migrate_to_uri(desturi, flags, dname, uri, bandwidth)
+
+Migrate a domain to an alternative host. The C<destri> parameter
+should be a valid libvirt connection URI for the remote target host.
+If the C<flags> parameter is zero offline migration will be
+performed. The C<Sys::Virt::Domain::MIGRATE_LIVE> constant can be
+used to request live migration. The C<dname> parameter allows the
+guest to be renamed on the target host, if set to C<undef>, the
+domains' current name will be maintained. In normal circumstances,
+the source host determines the target hostname from the URI associated
+with the C<destcon> connection. If the destination host is multi-homed
+it may be neccessary to supply an alternate destination hostame
+via the C<uri> parameter. The C<bandwidth> parameter allows network
+usage to be throttled during migration. If set to zero, no throttling
+will be performed. The C<flags>, C<dname>, C<uri> and C<bandwidth>
+parameters are all optional, and if omitted default to zero, C<undef>,
+C<undef>, and zero respectively.
 
 
 =item @vcpuinfo = $dom->get_vcpu_info()
@@ -490,6 +556,32 @@ is performed
 
 Migrate the guest without interrupting its execution on the source
 host.
+
+=item Sys::Virt::Domain::MIGRATE_PEER2PEER
+
+Manage the migration process over a direct peer-2-peer connection between
+the source and destination host libvirtd daemons.
+
+=item Sys::Virt::Domain::MIGRATE_TUNNELLED
+
+Tunnel the migration data over the libvirt daemon connection, rather
+than the native hypervisor data transport. Requires PEER2PEER flag to
+be set.
+
+=item Sys::Virt::Domain::MIGRATE_PERSIST_DEST
+
+Make the domain persistent on the destination host, defining its
+configuration file upon completion of migration.
+
+=item Sys::Virt::Domain::MIGRATE_UNDEFINE_SOURCE
+
+Remove the domain's persistent configuration after migration
+completes successfully.
+
+=item Sys::Virt::Domain::MIGRATE_PAUSED
+
+Do not re-start execution of the guest CPUs on the destination
+host after migration completes.
 
 =back
 

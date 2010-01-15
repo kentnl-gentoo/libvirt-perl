@@ -372,7 +372,10 @@ _open_auth_callback(virConnectCredentialPtr cred,
       (void)hv_store(credrec, "type", 4, newSViv(cred[i].type), 0);
       (void)hv_store(credrec, "prompt", 6, newSVpv(cred[i].prompt, 0), 0);
       (void)hv_store(credrec, "challenge", 9, newSVpv(cred[i].challenge, 0), 0);
-      (void)hv_store(credrec, "result", 6, newSVpv(cred[i].defresult, 0), 0);
+      if (cred[i].defresult != NULL)
+          (void)hv_store(credrec, "result", 6, newSVpv(cred[i].defresult, 0), 0);
+      else
+          (void)hv_fetch(credrec, "result", 6, 1);
 
       av_push(credlist, newRV_noinc((SV *)credrec));
   }
@@ -515,6 +518,39 @@ _get_conn_version(con)
   OUTPUT:
       RETVAL
 
+unsigned long
+_get_conn_library_version(con)
+      virConnectPtr con;
+ PREINIT:
+      unsigned long version;
+   CODE:
+      if (virConnectGetLibVersion(con, &version) < 0) {
+	_croak_error(virConnGetLastError(con));
+      }
+      RETVAL = version;
+  OUTPUT:
+      RETVAL
+
+int
+is_encrypted(conn)
+      virConnectPtr conn;
+    CODE:
+      if ((RETVAL = virConnectIsEncrypted(conn)) < 0) {
+          _croak_error(virConnGetLastError(conn));
+      }
+  OUTPUT:
+      RETVAL
+
+int
+is_secure(conn)
+      virConnectPtr conn;
+    CODE:
+      if ((RETVAL = virConnectIsSecure(conn)) < 0) {
+          _croak_error(virConnGetLastError(conn));
+      }
+  OUTPUT:
+      RETVAL
+
 const char *
 get_type(con)
       virConnectPtr con;
@@ -629,6 +665,21 @@ PREINIT:
       }
       RETVAL = newSVpv(xml, 0);
       free(xml);
+  OUTPUT:
+      RETVAL
+
+SV *
+compare_cpu(con, xml, flags=0)
+      virConnectPtr con;
+      char *xml;
+      unsigned int flags;
+PREINIT:
+      int rc;
+   CODE:
+      if ((rc = virConnectCompareCPU(con, xml, flags)) < 0) {
+	 _croak_error(virConnGetLastError(con));
+      }
+      RETVAL = newSViv(rc);
   OUTPUT:
       RETVAL
 
@@ -948,6 +999,38 @@ list_defined_interface_names(con, maxnames)
       Safefree(names);
 
 
+int
+num_of_secrets(con)
+      virConnectPtr con;
+    CODE:
+      if ((RETVAL = virConnectNumOfSecrets(con)) < 0) {
+	_croak_error(virConnGetLastError(con));
+      }
+  OUTPUT:
+      RETVAL
+
+
+void
+list_secret_uuids(con, maxuuids)
+      virConnectPtr con;
+      int maxuuids;
+ PREINIT:
+      char **uuids;
+      int i, nsecret;
+  PPCODE:
+      Newx(uuids, maxuuids, char *);
+      if ((nsecret = virConnectListSecrets(con, uuids, maxuuids)) < 0) {
+        Safefree(uuids);
+	_croak_error(virConnGetLastError(con));
+      }
+      EXTEND(SP, nsecret);
+      for (i = 0 ; i < nsecret ; i++) {
+	PUSHs(sv_2mortal(newSVpv(uuids[i], 0)));
+	free(uuids[i]);
+      }
+      Safefree(uuids);
+
+
 SV *
 domain_xml_from_native(con, configtype, configdata, flags=0)
       virConnectPtr con;
@@ -1130,6 +1213,28 @@ get_name(dom)
     CODE:
       if (!(RETVAL = virDomainGetName(dom))) {
 	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
+      }
+  OUTPUT:
+      RETVAL
+
+
+int
+is_active(dom)
+      virDomainPtr dom;
+    CODE:
+      if ((RETVAL = virDomainIsActive(dom)) < 0) {
+          _croak_error(virConnGetLastError(virDomainGetConnect(dom)));
+      }
+  OUTPUT:
+      RETVAL
+
+
+int
+is_persistent(dom)
+      virDomainPtr dom;
+    CODE:
+      if ((RETVAL = virDomainIsPersistent(dom)) < 0) {
+          _croak_error(virConnGetLastError(virDomainGetConnect(dom)));
       }
   OUTPUT:
       RETVAL
@@ -1478,6 +1583,28 @@ PREINIT:
  OUTPUT:
      RETVAL
 
+
+void
+migrate_to_uri(dom, desturi, flags=0, dname=&PL_sv_undef, uri=&PL_sv_undef, bandwidth=0)
+     virDomainPtr dom;
+     const char *desturi;
+     unsigned long flags;
+     SV *dname;
+     SV *uri;
+     unsigned long bandwidth;
+PREINIT:
+     const char *dnamestr = NULL;
+     const char *uristr = NULL;
+  PPCODE:
+     if (SvOK(dname))
+       dnamestr = SvPV_nolen(dname);
+     if (SvOK(uri))
+       uristr = SvPV_nolen(uri);
+
+     if (virDomainMigrateToURI(dom, desturi, flags, dnamestr, bandwidth) < 0) {
+       _croak_error(virConnGetLastError(virDomainGetConnect(dom)));
+     }
+
 void
 attach_device(dom, xml)
       virDomainPtr dom;
@@ -1537,6 +1664,51 @@ interface_stats(dom, path)
       (void)hv_store (RETVAL, "tx_packets", 10, virt_newSVll(stats.tx_packets), 0);
       (void)hv_store (RETVAL, "tx_errs", 7, virt_newSVll(stats.tx_errs), 0);
       (void)hv_store (RETVAL, "tx_drop", 7, virt_newSVll(stats.tx_drop), 0);
+  OUTPUT:
+      RETVAL
+
+
+HV *
+memory_stats(dom, flags=0)
+      virDomainPtr dom;
+      unsigned int flags;
+  PREINIT:
+      virDomainMemoryStatPtr stats;
+      int i, got;
+    CODE:
+      Newx(stats, VIR_DOMAIN_MEMORY_STAT_NR, virDomainMemoryStatStruct);
+      if ((got = virDomainMemoryStats(dom, stats, VIR_DOMAIN_MEMORY_STAT_NR, flags)) < 0) {
+	_croak_error(virConnGetLastError(virDomainGetConnect(dom)));
+      }
+      RETVAL = (HV *)sv_2mortal((SV*)newHV());
+      for (i = 0 ; i < got ; i++) {
+          switch (stats[i].tag) {
+          case VIR_DOMAIN_MEMORY_STAT_SWAP_IN:
+              (void)hv_store (RETVAL, "swap_in", 7, virt_newSVll(stats[i].val), 0);
+              break;
+
+          case VIR_DOMAIN_MEMORY_STAT_SWAP_OUT:
+              (void)hv_store (RETVAL, "swap_out", 8, virt_newSVll(stats[i].val), 0);
+              break;
+
+          case VIR_DOMAIN_MEMORY_STAT_MAJOR_FAULT:
+              (void)hv_store (RETVAL, "major_fault", 11, virt_newSVll(stats[i].val), 0);
+              break;
+
+          case VIR_DOMAIN_MEMORY_STAT_MINOR_FAULT:
+              (void)hv_store (RETVAL, "minor_fault", 11, virt_newSVll(stats[i].val), 0);
+              break;
+
+          case VIR_DOMAIN_MEMORY_STAT_UNUSED:
+              (void)hv_store (RETVAL, "unused", 6, virt_newSVll(stats[i].val), 0);
+              break;
+
+          case VIR_DOMAIN_MEMORY_STAT_AVAILABLE:
+              (void)hv_store (RETVAL, "available", 9, virt_newSVll(stats[i].val), 0);
+              break;
+          }
+      }
+      Safefree(stats);
   OUTPUT:
       RETVAL
 
@@ -1776,6 +1948,28 @@ get_name(net)
       RETVAL
 
 
+int
+is_active(net)
+      virNetworkPtr net;
+    CODE:
+      if ((RETVAL = virNetworkIsActive(net)) < 0) {
+          _croak_error(virConnGetLastError(virNetworkGetConnect(net)));
+      }
+  OUTPUT:
+      RETVAL
+
+
+int
+is_persistent(net)
+      virNetworkPtr net;
+    CODE:
+      if ((RETVAL = virNetworkIsPersistent(net)) < 0) {
+          _croak_error(virConnGetLastError(virNetworkGetConnect(net)));
+      }
+  OUTPUT:
+      RETVAL
+
+
 SV *
 get_bridge_name(net)
       virNetworkPtr net;
@@ -1970,6 +2164,28 @@ get_name(pool)
     CODE:
       if (!(RETVAL = virStoragePoolGetName(pool))) {
 	_croak_error(virConnGetLastError(virStoragePoolGetConnect(pool)));
+      }
+  OUTPUT:
+      RETVAL
+
+
+int
+is_active(pool)
+      virStoragePoolPtr pool;
+    CODE:
+      if ((RETVAL = virStoragePoolIsActive(pool)) < 0) {
+          _croak_error(virConnGetLastError(virStoragePoolGetConnect(pool)));
+      }
+  OUTPUT:
+      RETVAL
+
+
+int
+is_persistent(pool)
+      virStoragePoolPtr pool;
+    CODE:
+      if ((RETVAL = virStoragePoolIsPersistent(pool)) < 0) {
+          _croak_error(virConnGetLastError(virStoragePoolGetConnect(pool)));
       }
   OUTPUT:
       RETVAL
@@ -2467,6 +2683,17 @@ get_name(iface)
       RETVAL
 
 
+int
+is_active(iface)
+      virInterfacePtr iface;
+    CODE:
+      if ((RETVAL = virInterfaceIsActive(iface)) < 0) {
+          _croak_error(virConnGetLastError(virInterfaceGetConnect(iface)));
+      }
+  OUTPUT:
+      RETVAL
+
+
 SV *
 get_xml_description(iface)
       virInterfacePtr iface;
@@ -2521,6 +2748,171 @@ DESTROY(iface_rv)
 	virInterfaceFree(iface);
 	sv_setiv((SV*)SvRV(iface_rv), 0);
       }
+
+
+MODULE = Sys::Virt::Secret  PACKAGE = Sys::Virt::Secret
+
+virSecretPtr
+_define_xml(con, xml, flags=0)
+      virConnectPtr con;
+      const char *xml;
+      unsigned int flags;
+    CODE:
+      if (!(RETVAL = virSecretDefineXML(con, xml, flags))) {
+	_croak_error(virConnGetLastError(con));
+      }
+  OUTPUT:
+      RETVAL
+
+virSecretPtr
+_lookup_by_usage(con, usageType, usageID)
+      virConnectPtr con;
+      int usageType;
+      const char *usageID;
+    CODE:
+      if (!(RETVAL = virSecretLookupByUsage(con, usageType, usageID))) {
+	_croak_error(virConnGetLastError(con));
+      }
+  OUTPUT:
+      RETVAL
+
+virSecretPtr
+_lookup_by_uuid(con, uuid)
+      virConnectPtr con;
+      const unsigned char *uuid;
+    CODE:
+      if (!(RETVAL = virSecretLookupByUUID(con, uuid))) {
+	_croak_error(virConnGetLastError(con));
+      }
+  OUTPUT:
+      RETVAL
+
+virSecretPtr
+_lookup_by_uuid_string(con, uuid)
+      virConnectPtr con;
+      const char *uuid;
+    CODE:
+      if (!(RETVAL = virSecretLookupByUUIDString(con, uuid))) {
+	_croak_error(virConnGetLastError(con));
+      }
+  OUTPUT:
+      RETVAL
+
+SV *
+get_uuid(sec)
+      virSecretPtr sec;
+  PREINIT:
+      unsigned char rawuuid[VIR_UUID_BUFLEN];
+    CODE:
+      if ((virSecretGetUUID(sec, rawuuid)) < 0) {
+	_croak_error(virConnGetLastError(virSecretGetConnect(sec)));
+      }
+      RETVAL = newSVpv((char*)rawuuid, sizeof(rawuuid));
+  OUTPUT:
+      RETVAL
+
+SV *
+get_uuid_string(sec)
+      virSecretPtr sec;
+  PREINIT:
+      char uuid[VIR_UUID_STRING_BUFLEN];
+    CODE:
+      if ((virSecretGetUUIDString(sec, uuid)) < 0) {
+	_croak_error(virConnGetLastError(virSecretGetConnect(sec)));
+      }
+
+      RETVAL = newSVpv(uuid, 0);
+  OUTPUT:
+      RETVAL
+
+const char *
+get_usage_id(sec)
+      virSecretPtr sec;
+    CODE:
+      if (!(RETVAL = virSecretGetUsageID(sec))) {
+	_croak_error(virConnGetLastError(virSecretGetConnect(sec)));
+      }
+  OUTPUT:
+      RETVAL
+
+
+int
+get_usage_type(sec)
+      virSecretPtr sec;
+    CODE:
+      if (!(RETVAL = virSecretGetUsageType(sec))) {
+	_croak_error(virConnGetLastError(virSecretGetConnect(sec)));
+      }
+  OUTPUT:
+      RETVAL
+
+
+SV *
+get_xml_description(sec)
+      virSecretPtr sec;
+  PREINIT:
+      char *xml;
+    CODE:
+      if (!(xml = virSecretGetXMLDesc(sec, 0))) {
+	 _croak_error(virConnGetLastError(virSecretGetConnect(sec)));
+      }
+      RETVAL = newSVpv(xml, 0);
+      free(xml);
+  OUTPUT:
+      RETVAL
+
+void
+undefine(sec)
+      virSecretPtr sec;
+    PPCODE:
+      if (virSecretUndefine(sec) < 0) {
+	_croak_error(virConnGetLastError(virSecretGetConnect(sec)));
+      }
+
+void
+set_value(sec, value, flags=0)
+      virSecretPtr sec;
+      SV *value;
+      unsigned int flags;
+PREINIT:
+      unsigned char *bytes;
+      STRLEN len;
+ PPCODE:
+      bytes = (unsigned char *)SvPV(value, len);
+      if (virSecretSetValue(sec, bytes, len, flags) < 0) {
+        _croak_error(virConnGetLastError(virSecretGetConnect(sec)));
+      }
+
+
+SV *
+get_value(sec, flags=0)
+      virSecretPtr sec;
+      unsigned int flags;
+PREINIT:
+      unsigned char *bytes;
+      size_t len;
+    CODE:
+      if ((bytes = virSecretGetValue(sec, &len, flags)) == NULL) {
+	_croak_error(virConnGetLastError(virSecretGetConnect(sec)));
+      }
+      RETVAL = newSVpv((char*)bytes, len);
+  OUTPUT:
+      RETVAL
+
+
+
+void
+DESTROY(sec_rv)
+      SV *sec_rv;
+ PREINIT:
+      virSecretPtr sec;
+  PPCODE:
+      sec = (virSecretPtr)SvIV((SV*)SvRV(sec_rv));
+      if (sec) {
+	virSecretFree(sec);
+	sv_setiv((SV*)SvRV(sec_rv), 0);
+      }
+
 
 
 
@@ -2616,6 +3008,11 @@ BOOT:
       REGISTER_CONSTANT(VIR_CRED_EXTERNAL, CRED_EXTERNAL);
 
 
+      /* Don't bother with VIR_CPU_COMPARE_ERROR since we die in that case */
+      REGISTER_CONSTANT(VIR_CPU_COMPARE_INCOMPATIBLE, CPU_COMPARE_INCOMPATIBLE);
+      REGISTER_CONSTANT(VIR_CPU_COMPARE_IDENTICAL, CPU_COMPARE_IDENTICAL);
+      REGISTER_CONSTANT(VIR_CPU_COMPARE_SUPERSET, CPU_COMPARE_SUPERSET);
+
       stash = gv_stashpv( "Sys::Virt::Event", TRUE );
 
       REGISTER_CONSTANT(VIR_EVENT_HANDLE_READABLE, HANDLE_READABLE);
@@ -2643,6 +3040,11 @@ BOOT:
          in the XS layer */
 
       REGISTER_CONSTANT(VIR_MIGRATE_LIVE, MIGRATE_LIVE);
+      REGISTER_CONSTANT(VIR_MIGRATE_PEER2PEER, MIGRATE_PEER2PEER);
+      REGISTER_CONSTANT(VIR_MIGRATE_TUNNELLED, MIGRATE_TUNNELLED);
+      REGISTER_CONSTANT(VIR_MIGRATE_PERSIST_DEST, MIGRATE_PERSIST_DEST);
+      REGISTER_CONSTANT(VIR_MIGRATE_UNDEFINE_SOURCE, MIGRATE_UNDEFINE_SOURCE);
+      REGISTER_CONSTANT(VIR_MIGRATE_PAUSED, MIGRATE_PAUSED);
 
 
       REGISTER_CONSTANT(VIR_DOMAIN_XML_SECURE, XML_SECURE);
@@ -2700,12 +3102,20 @@ BOOT:
       REGISTER_CONSTANT(VIR_STORAGE_POOL_DELETE_ZEROED, DELETE_ZEROED);
 
 
+
       stash = gv_stashpv( "Sys::Virt::StorageVol", TRUE );
       REGISTER_CONSTANT(VIR_STORAGE_VOL_FILE, TYPE_FILE);
       REGISTER_CONSTANT(VIR_STORAGE_VOL_BLOCK, TYPE_BLOCK);
 
       REGISTER_CONSTANT(VIR_STORAGE_VOL_DELETE_NORMAL, DELETE_NORMAL);
       REGISTER_CONSTANT(VIR_STORAGE_VOL_DELETE_ZEROED, DELETE_ZEROED);
+
+
+
+      stash = gv_stashpv( "Sys::Virt::Secret", TRUE );
+      REGISTER_CONSTANT(VIR_SECRET_USAGE_TYPE_NONE, USAGE_TYPE_NONE);
+      REGISTER_CONSTANT(VIR_SECRET_USAGE_TYPE_VOLUME, USAGE_TYPE_VOLUME);
+
 
 
       stash = gv_stashpv( "Sys::Virt::Error", TRUE );
@@ -2734,6 +3144,12 @@ BOOT:
       REGISTER_CONSTANT(VIR_FROM_NODEDEV, FROM_NODEDEV);
       REGISTER_CONSTANT(VIR_FROM_XEN_INOTIFY, FROM_XEN_INOTIFY);
       REGISTER_CONSTANT(VIR_FROM_SECURITY, FROM_SECURITY);
+      REGISTER_CONSTANT(VIR_FROM_VBOX, FROM_VBOX);
+      REGISTER_CONSTANT(VIR_FROM_INTERFACE, FROM_INTERFACE);
+      REGISTER_CONSTANT(VIR_FROM_ONE, FROM_ONE);
+      REGISTER_CONSTANT(VIR_FROM_ESX, FROM_ESX);
+      REGISTER_CONSTANT(VIR_FROM_PHYP, FROM_PHYP);
+      REGISTER_CONSTANT(VIR_FROM_SECRET, FROM_SECRET);
 
 
 
@@ -2796,4 +3212,11 @@ BOOT:
       REGISTER_CONSTANT(VIR_WAR_NO_INTERFACE, WAR_NO_INTERFACE);
       REGISTER_CONSTANT(VIR_ERR_NO_INTERFACE, ERR_NO_INTERFACE);
       REGISTER_CONSTANT(VIR_ERR_INVALID_INTERFACE, ERR_INVALID_INTERFACE);
+      REGISTER_CONSTANT(VIR_ERR_MULTIPLE_INTERFACES, ERR_MULTIPLE_INTERFACES);
+      REGISTER_CONSTANT(VIR_WAR_NO_SECRET, WAR_NO_SECRET);
+      REGISTER_CONSTANT(VIR_ERR_INVALID_SECRET, ERR_INVALID_SECRET);
+      REGISTER_CONSTANT(VIR_ERR_NO_SECRET, ERR_NO_SECRET);
+      REGISTER_CONSTANT(VIR_ERR_CONFIG_UNSUPPORTED, ERR_CONFIG_UNSUPPORTED);
+      REGISTER_CONSTANT(VIR_ERR_OPERATION_TIMEOUT, ERR_OPERATION_TIMEOUT);
+      REGISTER_CONSTANT(VIR_ERR_MIGRATE_PERSIST_FAILED, ERR_MIGRATE_PERSIST_FAILED);
     }

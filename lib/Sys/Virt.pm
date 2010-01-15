@@ -66,8 +66,9 @@ use Sys::Virt::StoragePool;
 use Sys::Virt::StorageVol;
 use Sys::Virt::NodeDevice;
 use Sys::Virt::Interface;
+use Sys::Virt::Secret;
 
-our $VERSION = '0.2.2';
+our $VERSION = '0.2.3';
 require XSLoader;
 XSLoader::load('Sys::Virt', $VERSION);
 
@@ -582,19 +583,23 @@ sub list_node_devices {
     return @devs;
 }
 
-=item my $nnames = $vmm->num_of_node_devices($capability)
+=item my $nnames = $vmm->num_of_node_devices($capability[, $flags])
 
 Return the number of host devices known to the VMM. This can be
 used as the C<maxids> parameter to C<list_node_device_names>.
-The optional C<capability> parameter allows the list to be restricted to
-only devices with a particular capability type.
+The C<capability> parameter allows the list to be restricted to
+only devices with a particular capability type, and should be left
+as C<undef> if the full list is required. The optional <flags>
+parameter is currently unused and defaults to 0 if omitted.
 
-=item my @netNames = $vmm->list_node_device_names($capability, $maxnames)
+=item my @netNames = $vmm->list_node_device_names($capability, $maxnames[, $flags])
 
 Return a list of all host device names currently known to the VMM. The names can
 be used with the C<get_node_device_by_name> method.
-The optional C<capability> parameter allows the list to be restricted to
-only devices with a particular capability type.
+The C<capability> parameter allows the list to be restricted to
+only devices with a particular capability type, and should be left
+as C<undef> if the full list is required. The optional <flags>
+parameter is currently unused and defaults to 0 if omitted.
 
 =item my @ifaces = $vmm->list_interfaces()
 
@@ -665,6 +670,41 @@ used as the C<maxnames> parameter to C<list_defined_interface_names>.
 
 Return a list of inactive interface names currently known to the VMM. The names can
 be used with the C<get_interface_by_name> method.
+
+=item my @ifaces = $vmm->list_secrets()
+
+Return a list of all secrets currently known to the VMM. The elements
+in the returned list are instances of the L<Sys::Virt::Secret> class.
+
+=cut
+
+sub list_secrets {
+    my $self = shift;
+
+    my $nuuids = $self->num_of_secrets();
+    my @uuids = $self->list_secrets($nuuids);
+
+    my @secrets;
+    foreach my $uuid (@uuids) {
+	eval {
+	    push @secrets, Sys::Virt::Secret->_new(connection => $self, uuid => $uuid);
+	};
+	if ($@) {
+	    # nada - secret went away before we could look it up
+	};
+    }
+    return @secrets;
+}
+
+=item my $nuuids = $vmm->num_of_secrets()
+
+Return the number of secrets known to the VMM. This can be
+used as the C<maxuuids> parameter to C<list_secrets>.
+
+=item my @uuids = $vmm->list_secret_uuids($maxuuids)
+
+Return a list of all secret uuids currently known to the VMM. The uuids can
+be used with the C<get_secret_by_uuid> method.
 
 =item my $dom = $vmm->get_domain_by_name($name)
 
@@ -845,13 +885,46 @@ sub get_interface_by_mac {
 }
 
 
-=item my $xml = $vmm->find_storage_pool_sources($type, $srcspec, $flags)
+=item my $sec = $vmm->get_secret_by_uuid($uuid)
+
+Return the secret with a globally unique id of C<$uuid>. The returned object is
+an instance of the L<Sys::Virt::Secret> class.
+
+=cut
+
+sub get_secret_by_uuid {
+    my $self = shift;
+    my $uuid = shift;
+
+    return Sys::Virt::Secret->_new(connection => $self, uuid => $uuid);
+}
+
+=item my $sec = $vmm->get_secret_by_usage($usageType, $usageID)
+
+Return the secret with a usage type of C<$usageType>, identified
+by C<$usageID>. The returned object is an instance of the
+L<Sys::Virt::Secret> class.
+
+=cut
+
+sub get_secret_by_usage {
+    my $self = shift;
+    my $type = shift;
+    my $id = shift;
+
+    return Sys::Virt::Secret->_new(connection => $self,
+				   usageType => $type,
+				   usageID => $id);
+}
+
+=item my $xml = $vmm->find_storage_pool_sources($type, $srcspec[, $flags])
 
 Probe for available storage pool sources for the pool of type C<$type>.
 The C<$srcspec> parameter can be C<undef>, or a parameter to refine the
 discovery process, for example a server hostname for NFS discovery. The
-C<$flags> parameter can usually be left as zero. The return scalar is
-an XML document describing the discovered storage pool sources.
+C<$flags> parameter is optional, and if omitted defaults to zero. The
+returned scalar is an XML document describing the discovered storage
+pool sources.
 
 =item $vmm->restore_domain($savefile)
 
@@ -939,9 +1012,35 @@ sub get_version {
     }
 }
 
+=item my $ver = $vmm->get_library_version
+
+Return the version number of the API associated with
+the active connection. This differs from C<get_version>
+in that if the connection is to a remote libvirtd
+daemon, it will return the API version of the remote
+libvirt, rather than the local client.
+
+=cut
+
+sub get_library_version {
+    my $self = shift;
+    return $self->_get_conn_library_version;
+}
+
 1;
 
 =pod
+
+=item $conn->is_secure()
+
+Returns a true value if the current connection is secure against
+network interception. This implies either use of UNIX sockets,
+or encryption with a TCP stream.
+
+=item $conn->is_encrypted()
+
+Returns a true value if the current connection data stream is
+encrypted.
 
 =item my $info = $con->get_node_info()
 
@@ -1012,6 +1111,13 @@ specifying the 'domain of interpretation' for security labels.
 
 Returns an XML document describing the hypervisor capabilities
 
+=item my $result = $con->compare_cpu($xml, $flags=0);
+
+Checks whether the CPU definition in C<$xml> is compatible with the
+current hypervisor connection. This can be used to determine whether
+it is safe to migrate a guest to this host. The returned result is
+one of the constants listed later
+
 =item $mem = $con->get_node_free_memory();
 
 Returns the current free memory on the host
@@ -1069,6 +1175,25 @@ RFC 1766 language code
 =item Sys::Virt::CRED_EXTERNAL
 
 Externally provided credential
+
+=back
+
+=head2 CPU COMPARISON CONSTANTS
+
+=over 4
+
+=item Sys::Virt::CPU_COMPARE_INCOMPATIBLE
+
+This host is missing one or more CPU features in the CPU
+description
+
+=item Sys::Virt::CPU_COMPARE_IDENTICAL
+
+The host has an identical CPU description
+
+=item Sys::Virt::CPU_COMPARE_SUPERSET
+
+The host offers a superset of the CPU descriptoon
 
 =back
 
