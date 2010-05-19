@@ -143,6 +143,25 @@ the file named in the C<$filename> parameter. The domain can later
 be restored from this file with the C<restore_domain> method on
 the L<Sys::Virt> object.
 
+=item $dom->managed_save($flags=0)
+
+Take a snapshot of the domain's state and save the information to
+a managed save location. The domain will be automatically restored
+with this state when it is next started. The C<$flags> parameter is
+unused and defaults to zero.
+
+=item $bool = $dom->has_managed_save_image($flags=0)
+
+Return a non-zero value if the domain has a managed save image
+that will be used at next start. The C<$flags> parameter is
+unused and defaults to zero.
+
+=item $dom->managed_save_remove($flags=0)
+
+Remove the current managed save image, causing the guest to perform
+a full boot next time it is started. The C<$flags> parameter is
+unused and defaults to zero.
+
 =item $dom->core_dump($filename[, $flags])
 
 Trigger a core dump of the guest virtual machine, saving its memory
@@ -186,6 +205,31 @@ constants &Sys::Virt::Domain::STATE_*.
 
 =back
 
+=item my $info = $dom->get_block_info($dev, $flags=0)
+
+Returns a hash reference summarising the disk usage of
+the host backing store for a guest block device. The
+C<$dev> parameter should be the path to the backing
+store on the host. C<$flags> is currently unused and
+defaults to 0 if omitted. The returned hash contains
+the following elements
+
+=over 4
+
+=item capacity
+
+Logical size in bytes of the block device backing image *
+
+=item allocation
+
+Highest allocated extent in bytes of the block device backing image
+
+=item physical
+
+Physical size in bytes of the container of the backing image
+
+=back
+
 =item $dom->set_max_memory($mem)
 
 Set the maximum memory for the domain to the value C<$mem>. The
@@ -218,15 +262,25 @@ currently unused and if omitted defaults to zero.
 Return the maximum number of vcpus that are configured
 for the domain
 
-=item $dom->attach_device($xml)
+=item $dom->attach_device($xml[, $flags])
 
 Hotplug a new device whose configuration is given by C<$xml>,
-to the running guest.
+to the running guest. The optional <$flags> parameter defaults
+to 0, but can accept one of the device hotplug flags described
+later.
 
-=item $dom->detach_device($xml)
+=item $dom->detach_device($xml[, $flags])
 
 Hotunplug a existing device whose configuration is given by C<$xml>,
-from the running guest.
+from the running guest. The optional <$flags> parameter defaults
+to 0, but can accept one of the device hotplug flags described
+later.
+
+=item $dom->update_device($xml[, $flags])
+
+Update the configuration of an existing device. The new configuration
+is given by C<$xml>. The optional <$flags> parameter defaults to
+0 but can accept one of the device hotplug flags described later.
 
 =item $data = $dom->block_peek($path, $offset, $size[, $flags)
 
@@ -392,7 +446,7 @@ guest to be renamed on the target host, if set to C<undef>, the
 domains' current name will be maintained. In normal circumstances,
 the source host determines the target hostname from the URI associated
 with the C<destcon> connection. If the destination host is multi-homed
-it may be neccessary to supply an alternate destination hostame
+it may be necessary to supply an alternate destination hostame
 via the C<uri> parameter. The C<bandwidth> parameter allows network
 usage to be throttled during migration. If set to zero, no throttling
 will be performed. The C<flags>, C<dname>, C<uri> and C<bandwidth>
@@ -411,13 +465,21 @@ guest to be renamed on the target host, if set to C<undef>, the
 domains' current name will be maintained. In normal circumstances,
 the source host determines the target hostname from the URI associated
 with the C<destcon> connection. If the destination host is multi-homed
-it may be neccessary to supply an alternate destination hostame
+it may be necessary to supply an alternate destination hostame
 via the C<uri> parameter. The C<bandwidth> parameter allows network
 usage to be throttled during migration. If set to zero, no throttling
 will be performed. The C<flags>, C<dname>, C<uri> and C<bandwidth>
 parameters are all optional, and if omitted default to zero, C<undef>,
 C<undef>, and zero respectively.
 
+
+=item $dom->migrate_set_max_downtime($downtime, $flags)
+
+Set the maximum allowed downtime during migration of the guest. A
+longer downtime makes it more likely that migration will complete,
+at the cost of longer time blackout for the guest OS at the switch
+over point. The C<downtime> parameter is measured in milliseconds.
+The C<$flags> parameter is currently unused and defaults to zero.
 
 =item @vcpuinfo = $dom->get_vcpu_info()
 
@@ -436,6 +498,113 @@ character.
 Ping the virtual CPU given by index C<$vcpu> to physical CPUs
 given by C<$mask>. The C<$mask> is a string representing a bitmask
 against physical CPUs, 8 cpus per character.
+
+=item my $info = $dom->get_job_info()
+
+Returns a hash reference summarising the execution state of the
+background job. The elements of the hash are as follows:
+
+=item $dom->abort_job()
+
+Aborts the currently executing job
+
+=item $count = $dom->num_of_snapshots()
+
+Return the number of saved snapshots of the domain
+
+=item @names = $dom->list_snapshot_names()
+
+List the names of all saved snapshots. The names can be
+used with the C<lookup_snapshot_by_name>
+
+=item @snapshots = $dom->list_snapshots()
+
+Return a list of all snapshots currently known to the domain. The elements
+in the returned list are instances of the L<Sys::Virt::DomainSnapshot> class.
+
+=cut
+
+
+sub list_snapshots {
+    my $self = shift;
+
+    my $nnames = $self->num_of_snapshots();
+    my @names = $self->list_snapshot_names($nnames);
+
+    my @snapshots;
+    foreach my $name (@names) {
+	eval {
+	    push @snapshots, Sys::Virt::Domain->_new(connection => $self, name => $name);
+	};
+	if ($@) {
+	    # nada - snapshot went away before we could look it up
+	};
+    }
+    return @snapshots;
+}
+
+
+=item $dom->has_current_snapshot()
+
+Returns a true value if the domain has a currently active snapshot
+
+=item $snapshot = $dom->current_snapshot()
+
+Returns the currently active snapshot for the domain.
+
+=over 4
+
+=item type
+
+The type of job, one of the JOB TYPE constants listed later in
+this document.
+
+=item timeElapsed
+
+The elapsed time in milliseconds
+
+=item timeRemaining
+
+The expected remaining time in milliseconds. Only set if the
+C<type> is JOB_UNBOUNDED.
+
+=item dataTotal
+
+The total amount of data expected to be processed by the job, in bytes.
+
+=item dataProcessed
+
+The current amount of data processed by the job, in bytes.
+
+=item dataRemaining
+
+The expected amount of data remaining to be processed by the job, in bytes.
+
+=item memTotal
+
+The total amount of mem expected to be processed by the job, in bytes.
+
+=item memProcessed
+
+The current amount of mem processed by the job, in bytes.
+
+=item memRemaining
+
+The expected amount of mem remaining to be processed by the job, in bytes.
+
+=item fileTotal
+
+The total amount of file expected to be processed by the job, in bytes.
+
+=item fileProcessed
+
+The current amount of file processed by the job, in bytes.
+
+=item fileRemaining
+
+The expected amount of file remaining to be processed by the job, in bytes.
+
+=back
 
 =cut
 
@@ -544,6 +713,26 @@ passwords.
 
 =back
 
+=head2 DEVICE HOTPLUG OPTIONS
+
+The following constants are used to control device hotplug
+operations
+
+=over 4
+
+=item Sys::Virt::Domain::DEVICE_MODIFY_CURRENT
+
+Modify the domain in its current state
+
+=item Sys::Virt::Domain::DEVICE_MODIFY_LIVE
+
+Modify only the live state of the domain
+
+=item Sys::Virt::Domain::DEVICE_MODIFY_CONFIG
+
+Modify only the persistent config of the domain
+
+=back
 
 =head2 MIGRATE OPTIONS
 
@@ -585,6 +774,39 @@ host after migration completes.
 
 =back
 
+
+=head2 JOB TYPES
+
+The following constants describe the different background job
+types.
+
+=over 4
+
+=item Sys::Virt::Domain::JOB_NONE
+
+No job is active
+
+=item Sys::Virt::Domain::JOB_BOUNDED
+
+A job with a finite completion time is active
+
+=item Sys::Virt::Domain::JOB_UNBOUNDED
+
+A job with an unbounded completion time is active
+
+=item Sys::Virt::Domain::JOB_COMPLETED
+
+The job has finished, but isn't cleaned up
+
+=item Sys::Virt::Domain::JOB_FAILED
+
+The job has hit an error, but isn't cleaned up
+
+=item Sys::Virt::Domain::JOB_CANCELLED
+
+The job was aborted at user request, but isn't cleaned up
+
+=back
 
 =head2 STATE CHANGE EVENTS
 
@@ -711,6 +933,130 @@ The domain configuration has gone away due to it being
 removed by administrator.
 
 =back
+
+=back
+
+=head2 EVENT ID CONSTANTS
+
+=over 4
+
+=item Sys::Virt::Domain::EVENT_ID_LIFECYCLE
+
+Domain lifecycle events
+
+=item Sys::Virt::Domain::EVENT_ID_REBOOT
+
+Soft / warm reboot events
+
+=item Sys::Virt::Domain::EVENT_ID_RTC_CHANGE
+
+RTC clock adjustments
+
+=item Sys::Virt::Domain::EVENT_ID_IO_ERROR
+
+File IO errors, typically from disks
+
+=item Sys::Virt::Domain::EVENT_ID_WATCHDOG
+
+Watchdog device triggering
+
+=item Sys::Virt::Domain::EVENT_ID_GRAPHICS
+
+Graphics client connections.
+
+=item Sys::Virt::Domain::EVENT_ID_IO_ERROR_REASON
+
+File IO errors, typically from disks, with a root cause
+
+=back
+
+=head2 IO ERROR EVENT CONSTANTS
+
+These constants describe what action was taken due to the
+IO error.
+
+=over 4
+
+=item Sys::Virt::Domain::EVENT_IO_ERROR_NONE
+
+No action was taken, the error was ignored & reported as success to guest
+
+=item Sys::Virt::Domain::EVENT_IO_ERROR_PAUSE
+
+The guest is paused since the error occurred
+
+=item Sys::Virt::Domain::EVENT_IO_ERROR_REPORT
+
+The error has been reported to the guest OS
+
+=back
+
+=head2 WATCHDOG EVENT CONSTANTS
+
+These constants describe what action was taken due to the
+watchdog firing
+
+=over 4
+
+=item Sys::Virt::Domain::EVENT_WATCHDOG_NONE
+
+No action was taken, the watchdog was ignored
+
+=item Sys::Virt::Domain::EVENT_WATCHDOG_PAUSE
+
+The guest is paused since the watchdog fired
+
+=item Sys::Virt::Domain::EVENT_WATCHDOG_POWEROFF
+
+The guest is powered off after the watchdog fired
+
+=item Sys::Virt::Domain::EVENT_WATCHDOG_RESET
+
+The guest is reset after the watchdog fired
+
+=item Sys::Virt::Domain::EVENT_WATCHDOG_SHUTDOWN
+
+The guest attempted to gracefully shutdown after the watchdog fired
+
+=item Sys::Virt::Domain::EVENT_WATCHDOG_DEBUG
+
+No action was taken, the watchdog was logged
+
+=back
+
+=head2 GRAPHICS EVENT PHASE CONSTANTS
+
+These constants describe the phase of the graphics connection
+
+=over 4
+
+=item Sys::Virt::Domain::EVENT_GRAPHICS_CONNECT
+
+The initial client connection
+
+=item Sys::Virt::Domain::EVENT_GRAPHICS_INITIALIZE
+
+The client has been authenticated & the connection is running
+
+=item Sys::Virt::Domain::EVENT_GRAPHICS_DISCONNECT
+
+The client has disconnected
+
+=back
+
+=head2 GRAPHICS EVENT ADDRESS CONSTANTS
+
+These constants describe the format of the address
+
+=over 4
+
+=item Sys::Virt::Domain::EVENT_GRAPHICS_ADDRESS_IPV4
+
+An IPv4 address
+
+=item Sys::Virt::Domain::EVENT_GRAPHICS_ADDRESS_IPV6
+
+An IPv6 address
 
 =back
 

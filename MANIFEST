@@ -9,11 +9,13 @@ examples/vcpuinfo.pl
 INSTALL
 lib/Sys/Virt.pm
 lib/Sys/Virt/Domain.pm
+lib/Sys/Virt/DomainSnapshot.pm
 lib/Sys/Virt/Error.pm
 lib/Sys/Virt/Event.pm
 lib/Sys/Virt/Interface.pm
 lib/Sys/Virt/Network.pm
 lib/Sys/Virt/NodeDevice.pm
+lib/Sys/Virt/NWFilter.pm
 lib/Sys/Virt/Secret.pm
 lib/Sys/Virt/StoragePool.pm
 lib/Sys/Virt/StorageVol.pm

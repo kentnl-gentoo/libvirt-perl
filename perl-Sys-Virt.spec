@@ -12,15 +12,15 @@
 
 Summary: Sys::Virt - Perl API to libvirt library
 Name: perl-%{appname}
-Version: 0.2.3
+Version: 0.2.4
 Release: 1%{_extra_release}
 License: GPLv2 or Artistic
 Group: Development/Tools
 Source: %{appname}-%{version}.tar.gz
 BuildRoot: /var/tmp/%{appname}-%{version}-root
 Requires: perl >= %{perlversion}
-Requires: libvirt >= 0.7.5
-BuildRequires: libvirt-devel >= 0.7.5
+Requires: libvirt-client >= 0.8.1
+BuildRequires: libvirt-devel >= 0.8.1
 BuildRequires: perl(Test::More)
 BuildRequires: perl(Time::HiRes)
 

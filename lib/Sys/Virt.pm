@@ -67,8 +67,10 @@ use Sys::Virt::StorageVol;
 use Sys::Virt::NodeDevice;
 use Sys::Virt::Interface;
 use Sys::Virt::Secret;
+use Sys::Virt::NWFilter;
+use Sys::Virt::DomainSnapshot;
 
-our $VERSION = '0.2.3';
+our $VERSION = '0.2.4';
 require XSLoader;
 XSLoader::load('Sys::Virt', $VERSION);
 
@@ -111,7 +113,7 @@ For further details consult C<http://libvirt.org/uri.html>
 If the optional C<readonly> parameter is supplied, then an unprivileged
 connection to the VMM will be attempted. If it is not supplied, then it
 defaults to making a fully privileged connection to the VMM. If the
-calling application is not running as root, it may be neccessary to
+calling application is not running as root, it may be necessary to
 provide authentication callbacks.
 
 If the optional C<auth> parameter is set to a non-zero value,
@@ -124,7 +126,7 @@ should be an array reference listing the set of credential
 types that will be supported. The credential constants in
 this module can be used as values in this list. The C<callback>
 parameter should be a subroutine reference containing the
-code neccessary to gather the credentials. When invoked it
+code necessary to gather the credentials. When invoked it
 will be supplied with a single parameter, a array reference
 of requested credentials. The elements of the array are
 hash references, with keys C<type> giving the type of
@@ -706,6 +708,41 @@ used as the C<maxuuids> parameter to C<list_secrets>.
 Return a list of all secret uuids currently known to the VMM. The uuids can
 be used with the C<get_secret_by_uuid> method.
 
+=item my @nets = $vmm->list_nwfilters()
+
+Return a list of all nwfilters currently known to the VMM. The elements
+in the returned list are instances of the L<Sys::Virt::NWFilter> class.
+
+=cut
+
+sub list_nwfilters {
+    my $self = shift;
+
+    my $nnames = $self->num_of_nwfilters();
+    my @names = $self->list_nwfilter_names($nnames);
+
+    my @nwfilters;
+    foreach my $name (@names) {
+	eval {
+	    push @nwfilters, Sys::Virt::NWFilter->_new(connection => $self, name => $name);
+	};
+	if ($@) {
+	    # nada - nwfilter went away before we could look it up
+	};
+    }
+    return @nwfilters;
+}
+
+=item my $nnames = $vmm->num_of_nwfilters()
+
+Return the number of running nwfilters known to the VMM. This can be
+used as the C<maxids> parameter to C<list_nwfilter_names>.
+
+=item my @filterNames = $vmm->list_nwfilter_names($maxnames)
+
+Return a list of all nwfilter names currently known to the VMM. The names can
+be used with the C<get_nwfilter_by_name> method.
+
 =item my $dom = $vmm->get_domain_by_name($name)
 
 Return the domain with a name of C<$name>. The returned object is
@@ -917,6 +954,35 @@ sub get_secret_by_usage {
 				   usageID => $id);
 }
 
+=item my $dom = $vmm->get_nwfilter_by_name($name)
+
+Return the domain with a name of C<$name>. The returned object is
+an instance of the L<Sys::Virt::NWFilter> class.
+
+=cut
+
+sub get_nwfilter_by_name {
+    my $self = shift;
+    my $name = shift;
+
+    return Sys::Virt::NWFilter->_new(connection => $self, name => $name);
+}
+
+
+=item my $dom = $vmm->get_nwfilter_by_uuid($uuid)
+
+Return the nwfilter with a globally unique id of C<$uuid>. The returned object is
+an instance of the L<Sys::Virt::NWFilter> class.
+
+=cut
+
+sub get_nwfilter_by_uuid {
+    my $self = shift;
+    my $uuid = shift;
+
+    return Sys::Virt::NWFilter->_new(connection => $self, uuid => $uuid);
+}
+
 =item my $xml = $vmm->find_storage_pool_sources($type, $srcspec[, $flags])
 
 Probe for available storage pool sources for the pool of type C<$type>.
@@ -1051,7 +1117,7 @@ node. The elements of the hash are as follows:
 
 Register a callback to received notificaitons of domain state change
 events. Only a single callback can be registered with each connection
-instance. The callback will be invoked with four paramters, an
+instance. The callback will be invoked with four parameters, an
 instance of C<Sys::Virt> for the connection, an instance of C<Sys::Virt::Domain>
 for the domain changing state, and a C<event> and C<detail> arguments,
 corresponding to the event constants defined in the C<Sys::Virt::Domain>
@@ -1063,6 +1129,77 @@ released in garbage collection.
 
 Unregister a callback, allowing the connection object to be garbage
 collected.
+
+=item $callback = $conn->domain_event_register_any($dom, $eventID, $callback)
+
+Register a callback to received notifications of domain events.
+The C<$dom> parameter can be C<undef> to request events on all
+known domains, or a specific C<Sys::Virt::Domain> object to
+filter events. The C<$eventID> parameter is one of the EVENT ID
+constants described later in this document. The C<$callback> is
+a subroutine reference that will receive the events.
+
+All callbacks receive a C<Sys::Virt> connection as the first parameter
+and a C<Sys::Virt::Domain> object indiciating the domain on which the
+event occurred as the second parameter. Subsequent parameters vary
+according to the event type
+
+=over
+
+=item EVENT_ID_LIFECYCLE
+
+Extra C<event> and C<detail> parameters defining the lifecycle
+transition that occurred.
+
+=item EVENT_ID_REBOOT
+
+No extra parameters
+
+=item EVENT_ID_RTC_CHANGE
+
+The C<utcoffset> gives the offset from UTC in seconds
+
+=item EVENT_ID_WATCHDOG
+
+The C<action> defines the action that is taken as a result
+of the watchdog triggering. One of the WATCHDOG constants
+described later
+
+=item EVENT_ID_IO_ERROR
+
+The C<srcPath> is the file on the host which had the error.
+The C<devAlias> is the unique device alias from the guest
+configuration associated with C<srcPath>. The C<action> is
+the action taken as a result of the error, one of the
+IO ERROR constants described later
+
+=item EVENT_ID_GRAPHICS
+
+The C<phase> is the stage of the connection, one of the GRAPHICS
+PHASE constants described later. The C<local> and C<remote>
+parameters follow with the details of the local and remote
+network addresses. The C<authScheme> describes how the user
+was authenticated (if at all). Finally C<identities> is an
+array ref containing authenticated identities for the user,
+if any.
+
+=back
+
+The return value is a unique callback ID that must be used when
+unregistering the event.
+
+
+=item $conn->domain_event_deregister_any($callbackID)
+
+Unregister a callback, associated with the C<$callbackID> previously
+obtained from C<domain_event_register_any>.
+
+=item my $xml = $con->baseline_cpu(\@xml, $flags=0)
+
+Given an array ref whose elements are XML documents describing host CPUs,
+compute the baseline CPU model that is operable across all hosts. The
+XML for the baseline CPU model is returned. The optional C<$flags>
+parameter is currently unused and defaults to 0.
 
 =over 4
 
