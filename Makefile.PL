@@ -3,7 +3,7 @@ use ExtUtils::MakeMaker;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
 
-my $libvirtver = "0.8.1";
+my $libvirtver = "0.8.7";
 my $stat = system "pkg-config --atleast-version=$libvirtver libvirt";
 die "cannot run pkg-config to check libvirt version" if $stat == -1;
 die "libvirt >= $libvirtver is required\n" unless $stat == 0;
@@ -16,6 +16,7 @@ WriteMakefile(
 	      'VERSION_FROM' => 'lib/Sys/Virt.pm',
 	      'PREREQ_PM' => {
 		  'Test::More'  => 0,
+		  'XML::XPath' => 0,
 		  },
 	      'AUTHOR' => 'Daniel Berrange <dan@berrange.com>',
 	      'LIBS' => [$LIBVIRT_LIBS],

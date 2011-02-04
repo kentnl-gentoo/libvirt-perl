@@ -64,7 +64,7 @@ sub _new {
 	if ($params{nocreate}) {
 	    $self = Sys::Virt::Domain::_define_xml($con,  $params{xml});
 	} else {
-	    $self = Sys::Virt::Domain::_create_linux($con,  $params{xml});
+	    $self = Sys::Virt::Domain::_create($con,  $params{xml}, $params{flags});
 	}
     } else {
 	die "address, id or uuid parameters are required";
@@ -104,6 +104,12 @@ Returns a true value if the domain is currently running
 Returns a true value if the domain has a persistent configuration
 file defined
 
+=item $dom->is_updated()
+
+Returns a true value if the domain is running and has a persistent
+configuration file defined that is out of date compared to the
+current live config.
+
 =item my $xml = $dom->get_xml_description()
 
 Returns an XML document containing a complete description of
@@ -114,10 +120,12 @@ the domain's configuration
 Returns a string containing the name of the OS type running
 within the domain.
 
-=item $dom->create()
+=item $dom->create($flags)
 
 Start a domain whose configuration was previously defined using the
-C<define_domain> method in L<Sys::Virt>.
+C<define_domain> method in L<Sys::Virt>. The C<$flags> parameter
+accepts one of the DOMAIN CREATION constants documented later, and
+defaults to 0 if omitted.
 
 =item $dom->undefine()
 
@@ -306,9 +314,17 @@ start upon boot. Return false, otherwise
 Set the state of the autostart flag, which determines whether the
 guest will automatically start upon boot of the host OS
 
-=item $dom->set_vcpus($count)
+=item $dom->set_vcpus($count, [$flags])
 
-Set the number of virtual CPUs in the guest VM to C<$count>
+Set the number of virtual CPUs in the guest VM to C<$count>.
+The optional C<$flags> parameter can be used to control whether
+the setting changes the live config or inactive config.
+
+=item $count = $dom->get_vcpus([$flags])
+
+Get the number of virtual CPUs in the guest VM.
+The optional C<$flags> parameter can be used to control whether
+to query the setting of the live config or inactive config.
 
 =item $type = $dom->get_scheduler_type()
 
@@ -328,6 +344,18 @@ Return the set of scheduler tunable parameters for the guest.
 Update the set of scheduler tunable parameters. The value names for
 tunables vary, and can be discovered using the C<get_scheduler_params>
 call
+
+=item my $params = $dom->get_memory_parameters()
+
+Return a hash reference containing the set of memory tunable
+parameters for the guest. The keys in the hash are one of the
+constants MEMORY PARAMETERS described later.
+
+=item $dom->set_memory_parameters($params)
+
+Update the memory tunable parameters for the guest. The
+C<$params> should be a hash reference whose keys are one
+of the MEMORY PARAMETERS constants.
 
 =over 4
 
@@ -658,6 +686,20 @@ The domain is inactive, and crashed.
 =back
 
 
+=head2 DOMAIN CREATION
+
+The following constants can be used to control the behaviour
+of domain creation
+
+=over 4
+
+=item Sys::Virt::Domain::START_PAUSED
+
+Keep the guest vCPUs paused after starting the guest
+
+=back
+
+
 =head2 MEMORY PEEK
 
 The following constants can be used with the C<memory_peek>
@@ -805,6 +847,53 @@ The job has hit an error, but isn't cleaned up
 =item Sys::Virt::Domain::JOB_CANCELLED
 
 The job was aborted at user request, but isn't cleaned up
+
+=back
+
+
+=head2 MEMORY PARAMETERS
+
+The following constants are useful when getting/setting
+memory parameters for guests
+
+=over 4
+
+=item Sys::Virt::Domain::MEMORY_HARD_LIMIT
+
+The maximum memory the guest can use.
+
+=item Sys::Virt::Domain::MEMORY_SOFT_LIMIT
+
+The memory upper limit enforced during memory contention.
+
+=item Sys::Virt::Domain::MEMORY_MIN_GUARANTEE
+
+The minimum memory guaranteed to be reserved for the guest.
+
+=item Sys::Virt::Domain::MEMORY_SWAP_HARD_LIMIT
+
+The maximum swap the guest can use.
+
+=item Sys::Virt::Domain::MEMORY_PARAM_UNLIMITED
+
+The value that indicates "unlimited"
+
+=back
+
+=head2 VCPU FLAGS
+
+The following constants are useful when getting/setting the
+VCPU count for a guest
+
+=over 4
+
+=item Sys::Virt::Domain::VCPU_LIVE
+
+Flag to request the live value
+
+=item Sys::Virt::Domain::VCPU_CONFIG
+
+Flag to request the persistent config value
 
 =back
 
