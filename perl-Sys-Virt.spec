@@ -12,7 +12,7 @@
 
 Summary: Sys::Virt - Perl API to libvirt library
 Name: perl-%{appname}
-Version: 0.2.5
+Version: 0.2.6
 Release: 1%{_extra_release}
 License: GPLv2 or Artistic
 Group: Development/Tools
