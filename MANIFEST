@@ -6,6 +6,7 @@ examples/dump-info.pl
 examples/dump-xml.pl
 examples/hv-stat.pl
 examples/vcpuinfo.pl
+HACKING
 INSTALL
 lib/Sys/Virt.pm
 lib/Sys/Virt/Domain.pm
@@ -19,6 +20,7 @@ lib/Sys/Virt/NWFilter.pm
 lib/Sys/Virt/Secret.pm
 lib/Sys/Virt/StoragePool.pm
 lib/Sys/Virt/StorageVol.pm
+lib/Sys/Virt/Stream.pm
 LICENSE
 Makefile.PL
 MANIFEST			This list of files

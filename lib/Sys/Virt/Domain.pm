@@ -482,7 +482,7 @@ parameters are all optional, and if omitted default to zero, C<undef>,
 C<undef>, and zero respectively.
 
 
-=item $dom->migrate_to_uri(desturi, flags, dname, uri, bandwidth)
+=item $dom->migrate_to_uri(desturi, flags, dname, bandwidth)
 
 Migrate a domain to an alternative host. The C<destri> parameter
 should be a valid libvirt connection URI for the remote target host.
@@ -496,7 +496,7 @@ with the C<destcon> connection. If the destination host is multi-homed
 it may be necessary to supply an alternate destination hostame
 via the C<uri> parameter. The C<bandwidth> parameter allows network
 usage to be throttled during migration. If set to zero, no throttling
-will be performed. The C<flags>, C<dname>, C<uri> and C<bandwidth>
+will be performed. The C<flags>, C<dname> and C<bandwidth>
 parameters are all optional, and if omitted default to zero, C<undef>,
 C<undef>, and zero respectively.
 
@@ -873,6 +873,10 @@ The minimum memory guaranteed to be reserved for the guest.
 =item Sys::Virt::Domain::MEMORY_SWAP_HARD_LIMIT
 
 The maximum swap the guest can use.
+
+=item Sys::Virt::Domain::MEMORY_PARAM_UNLIMITED
+
+The value of an unlimited memory parameter
 
 =back
 
