@@ -71,7 +71,7 @@ use Sys::Virt::NWFilter;
 use Sys::Virt::DomainSnapshot;
 use Sys::Virt::Stream;
 
-our $VERSION = '0.2.8';
+our $VERSION = '0.9.2';
 require XSLoader;
 XSLoader::load('Sys::Virt', $VERSION);
 
@@ -1007,6 +1007,21 @@ discovery process, for example a server hostname for NFS discovery. The
 C<$flags> parameter is optional, and if omitted defaults to zero. The
 returned scalar is an XML document describing the discovered storage
 pool sources.
+
+=item $vmm->interface_change_begin($flags)
+
+Begin a transaction for changing the configuration of one or more
+network interfaces
+
+=item $vmm->interface_change_commit($flags)
+
+Complete a transaction for changing the configuration of one or more
+network interfaces
+
+=item $vmm->interface_change_rollback($flags)
+
+Abort a transaction for changing the configuration of one or more
+network interfaces
 
 =item $vmm->restore_domain($savefile)
 
