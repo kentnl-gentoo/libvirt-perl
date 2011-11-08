@@ -5,6 +5,7 @@ examples/devices.pl
 examples/dump-info.pl
 examples/dump-xml.pl
 examples/hv-stat.pl
+examples/open-console.pl
 examples/save-restore.pl
 examples/send-key.pl
 examples/vcpuinfo.pl
