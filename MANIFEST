@@ -1,10 +1,11 @@
 AUTHORS
-CHANGES
+Changes
 examples/auth.pl
 examples/devices.pl
 examples/dump-info.pl
 examples/dump-xml.pl
 examples/hv-stat.pl
+examples/node-cpu.pl
 examples/open-console.pl
 examples/save-restore.pl
 examples/send-key.pl
@@ -42,6 +43,7 @@ perl-Sys-Virt.spec.PL
 README
 t/005-pod.t
 t/010-pod-coverage.t
+t/015-changes.t
 t/020-constants.t
 t/100-connect.t
 t/200-domains.t

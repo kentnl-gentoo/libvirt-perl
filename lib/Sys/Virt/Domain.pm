@@ -110,10 +110,13 @@ Returns a true value if the domain is running and has a persistent
 configuration file defined that is out of date compared to the
 current live config.
 
-=item my $xml = $dom->get_xml_description()
+=item my $xml = $dom->get_xml_description($flags=0)
 
 Returns an XML document containing a complete description of
-the domain's configuration
+the domain's configuration. The optional $flags parameter
+controls generation of the XML document, defaulting to 0 if
+omitted. It can be one or more of the XML DUMP constants
+listed later in this document.
 
 =item my $type = $dom->get_os_type()
 
@@ -531,35 +534,35 @@ Some kind of error count
 
 =back
 
-=item my %params = $dom->get_scheduler_parameters()
+=item my %params = $dom->get_scheduler_parameters($flags=0)
 
 Return the set of scheduler tunable parameters for the guest.
 
-=item $dom->set_scheduler_parameters($params)
+=item $dom->set_scheduler_parameters($params, $flags=0)
 
 Update the set of scheduler tunable parameters. The value names for
 tunables vary, and can be discovered using the C<get_scheduler_params>
 call
 
-=item my $params = $dom->get_memory_parameters()
+=item my $params = $dom->get_memory_parameters($flags=0)
 
 Return a hash reference containing the set of memory tunable
 parameters for the guest. The keys in the hash are one of the
 constants MEMORY PARAMETERS described later.
 
-=item $dom->set_memory_parameters($params)
+=item $dom->set_memory_parameters($params, $flags=0)
 
 Update the memory tunable parameters for the guest. The
 C<$params> should be a hash reference whose keys are one
 of the MEMORY PARAMETERS constants.
 
-=item my $params = $dom->get_blkio_parameters()
+=item my $params = $dom->get_blkio_parameters($flags=0)
 
 Return a hash reference containing the set of blkio tunable
 parameters for the guest. The keys in the hash are one of the
 constants BLKIO PARAMETERS described later.
 
-=item $dom->set_blkio_parameters($params)
+=item $dom->set_blkio_parameters($params, $flags=0)
 
 Update the blkio tunable parameters for the guest. The
 C<$params> should be a hash reference whose keys are one
@@ -576,6 +579,30 @@ are one of the constants BLOCK IOTUNE PARAMETERS described later.
 Update the blkio tunable parameters for the guest disk C<$disk>. The
 C<$params> should be a hash reference whose keys are one
 of the BLOCK IOTUNE PARAMETERS constants.
+
+=item my $params = $dom->get_interface_parameters($intf, $flags=0)
+
+Return a hash reference containing the set of interface tunable
+parameters for the guest. The keys in the hash are one of the
+constants INTERFACE PARAMETERS described later.
+
+=item $dom->set_interface_parameters($intf, $params, $flags=0)
+
+Update the interface tunable parameters for the guest. The
+C<$params> should be a hash reference whose keys are one
+of the INTERFACE PARAMETERS constants.
+
+=item my $params = $dom->get_numa_parameters($flags=0)
+
+Return a hash reference containing the set of numa tunable
+parameters for the guest. The keys in the hash are one of the
+constants NUMA PARAMETERS described later.
+
+=item $dom->set_numa_parameters($params, $flags=0)
+
+Update the numa tunable parameters for the guest. The
+C<$params> should be a hash reference whose keys are one
+of the NUMA PARAMETERS constants.
 
 =item $dom->block_resize($disk, $newsize, $flags=0)
 
@@ -1175,6 +1202,11 @@ if it is currently running.
 Include security sensitive information in the XML dump, such as
 passwords.
 
+=item Sys::Virt::Domain::XML_UPDATE_CPU
+
+Update the CPU model definition to match the current executing
+state.
+
 =back
 
 =head2 DEVICE HOTPLUG OPTIONS
@@ -1399,7 +1431,7 @@ The per-device I/O weight parameter
 
 =back
 
-=head2 BLKIO PARAMETERS
+=head2 BLKIO TUNING PARAMETERS
 
 The following parameters control I/O tuning for an individual
 guest disk.
@@ -1470,6 +1502,75 @@ The VM weight tunable
 
 =back
 
+=head2 NUMA PARAMETERS
+
+The following constants are useful when getting/setting the
+guest NUMA memory policy
+
+=over 4
+
+=item Sys::Virt::Domain::NUMA_MODE
+
+The NUMA policy mode
+
+=item Sys::Virt::Domain::NUMA_NODESET
+
+The NUMA nodeset mask
+
+=back
+
+The following constants are useful when interpreting the
+C<Sys::Virt::Domain::NUMA_MODE> parameter value
+
+=over 4
+
+=item Sys::Virt::Domain::NUMATUNE_MEM_STRICT
+
+Allocation is mandatory from the mask nodes
+
+=item Sys::Virt::Domain::NUMATUNE_MEM_PREFERRED
+
+Allocation is preferred from the masked nodes
+
+=item Sys::Virt::Domain::NUMATUNE_MEM_INTERLEAVE
+
+Allocation is interleaved across all masked nods
+
+=back
+
+=head2 INTERFACE PARAMETERS
+
+The following constants are useful when getting/setting the
+per network interface tunable parameters
+
+=over 4
+
+=item Sys::Virt::Domain::BANDWIDTH_IN_AVERAGE
+
+The average inbound bandwidth
+
+=item Sys::Virt::Domain::BANDWIDTH_IN_PEAK
+
+The peak inbound bandwidth
+
+=item Sys::Virt::Domain::BANDWIDTH_IN_BURST
+
+The burstable inbound bandwidth
+
+=item Sys::Virt::Domain::BANDWIDTH_OUT_AVERAGE
+
+The average outbound bandwidth
+
+=item Sys::Virt::Domain::BANDWIDTH_OUT_PEAK
+
+The peak outbound bandwidth
+
+=item Sys::Virt::Domain::BANDWIDTH_OUT_BURST
+
+The burstable outbound bandwidth
+
+=back
+
 =head2 VCPU FLAGS
 
 The following constants are useful when getting/setting the
@@ -1533,7 +1634,7 @@ The domain resumed because the admin unpaused it.
 
 =item Sys::Virt::Domain::EVENT_RESUMED_FROM_SNAPSHOT
 
-The domain resumed becuase it was restored from a snapshot
+The domain resumed because it was restored from a snapshot
 
 =back
 
