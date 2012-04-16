@@ -163,6 +163,10 @@ by calling the C<resume> method.
 Resume execution of a domain previously halted with the C<suspend>
 method.
 
+=item $dom->pm_wakeup()
+
+Wakeup the guest from power management suspend state
+
 =item $dom->pm_suspend_for_duration($target, $duration, $flags=0)
 
 Tells the guest OS to enter the power management suspend state
@@ -326,6 +330,10 @@ It is not known why the domain has started
 
 The guest is running after a resume
 
+=item Sys::Virt::Domain::STATE_RUNNING_WAKEUP
+
+The guest is running after wakeup from power management suspend
+
 =item Sys::Virt::Domain::STATE_SHUTDOWN_UNKNOWN
 
 It is not known why the domain has shutdown
@@ -365,6 +373,10 @@ The guest is shutoff due to controlled shutdown
 =item Sys::Virt::Domain::STATE_SHUTOFF_UNKNOWN
 
 It is not known why the domain has shutoff
+
+=item Sys::Virt::Domain::STATE_PMSUSPENDED_UNKNOWN
+
+It is not known why the domain was suspended
 
 =back
 
@@ -552,10 +564,10 @@ to query the setting of the live config or inactive config.
 
 Return the scheduler type for the guest domain
 
-=item %stats = $dom->block_stats($path)
+=item $stats = $dom->block_stats($path)
 
 Fetch the current I/O statistics for the block device given by C<$path>.
-The returned hash contains keys for
+The returned hash reference contains keys for
 
 =over 4
 
@@ -581,9 +593,11 @@ Some kind of error count
 
 =back
 
-=item my %params = $dom->get_scheduler_parameters($flags=0)
+=item my $params = $dom->get_scheduler_parameters($flags=0)
 
-Return the set of scheduler tunable parameters for the guest.
+Return the set of scheduler tunable parameters for the guest,
+as a hash reference. The precise set of keys in the hash
+are specific to the hypervisor.
 
 =item $dom->set_scheduler_parameters($params, $flags=0)
 
@@ -615,7 +629,7 @@ Update the blkio tunable parameters for the guest. The
 C<$params> should be a hash reference whose keys are one
 of the BLKIO PARAMETERS constants.
 
-=item %stats = $dom->get_block_iotune($disk, $flags=0)
+=item $stats = $dom->get_block_iotune($disk, $flags=0)
 
 Return a hash reference containing the set of blkio tunable
 parameters for the guest disk C<$disk>. The keys in the hash
@@ -653,17 +667,18 @@ of the NUMA PARAMETERS constants.
 
 =item $dom->block_resize($disk, $newsize, $flags=0)
 
-Resize the disk C<$disk> to have new size C<$newsize>. If the disk
+Resize the disk C<$disk> to have new size C<$newsize> KB. If the disk
 is backed by a special image format, the actual resize is done by the
 hypervisor. If the disk is backed by a raw file, or block device,
 the resize must be done prior to invoking this API call, and it
-merely updates the hypervisor's view of the disk size.
+merely updates the hypervisor's view of the disk size. The following
+flags may be used
 
 =over 4
 
-=item C<weight>
+=item Sys::Virt::Domain::BLOCK_RESIZE_BYTES
 
-Relative I/O weighting
+Treat C<$newsize> as if it were in bytes, rather than KB.
 
 =back
 
@@ -742,12 +757,13 @@ Total memory seen by guest
 
 =back
 
-=item %info = $dom->get_security_label()
+=item $info = $dom->get_security_label()
 
 Fetch information about the security label assigned to the guest
-domain. The returned hash has two keys, C<model> gives the name
-of the security model in effect (eg C<selinux>), while C<label>
-provides the name of the security label applied to the domain.
+domain. The returned hash reference has two keys, C<model> gives
+the name of the security model in effect (eg C<selinux>), while
+C<label> provides the name of the security label applied to the
+domain.
 
 =item $ddom = $dom->migrate(destcon, flags, dname, uri, bandwidth)
 
@@ -812,13 +828,13 @@ The C<$flags> parameter is currently unused and defaults to zero.
 =item $dom->migrate_set_max_speed($bandwidth, $flags)
 
 Set the maximum allowed bandwidth during migration of the guest.
-The C<bandwidth> parameter is measured in kilobytes/second.
+The C<bandwidth> parameter is measured in MB/second.
 The C<$flags> parameter is currently unused and defaults to zero.
 
 =item $bandwidth = $dom->migrate_get_max_speed($flag)
 
 Get the maximum allowed bandwidth during migration fo the guest.
-The returned <bandwidth> value is measured in kilobytes/second.
+The returned <bandwidth> value is measured in MB/second.
 The C<$flags> parameter is currently unused and defaults to zero.
 
 =item $dom->inject_nmi($flags)
@@ -896,7 +912,7 @@ qualified path of the block device being changed.
 
 Change the maximum I/O bandwidth used by the block job that
 is currently executing for C<$path>. The C<$bandwidth> argument
-is specified in KB/s
+is specified in MB/s
 
 =item $dom->abort_block_job($path, $flags=0)
 
@@ -907,13 +923,13 @@ associated with C<$path>
 
 Merge the backing files associated with C<$path> into the
 top level file. The C<$bandwidth> parameter specifies the
-maximum I/O rate to allow in KB/s.
+maximum I/O rate to allow in MB/s.
 
 =item $dom->block_rebase($path, $backingpath, $bandwith, $flags=0)
 
 Switch the backing path associated with C<$path> to instead
 use C<$backingpath>. The C<$bandwidth> parameter specifies the
-maximum I/O rate to allow in KB/s.
+maximum I/O rate to allow in MB/s.
 
 =item $count = $dom->num_of_snapshots()
 
@@ -1092,6 +1108,10 @@ The domain is inactive, and shut down.
 
 The domain is inactive, and crashed.
 
+=item Sys::Virt::Domain::STATE_PMSUSPENDED
+
+The domain is active, but in power management suspend state
+
 =back
 
 
@@ -1250,6 +1270,25 @@ Skip authentication of the client
 
 =back
 
+
+=head2 OPEN CONSOLE CONSTANTS
+
+The following constants are used when opening a connection
+to the guest console
+
+=over 4
+
+=item Sys::Virt::Domain::OPEN_CONSOLE_FORCE
+
+Force opening of the console, disconnecting any other
+open session
+
+=item Sys::Virt::Domain::OPEN_CONSOLE_SAFE
+
+Check if the console driver supports safe operations
+
+=back
+
 =head2 XML DUMP OPTIONS
 
 The following constants are used to control the information
@@ -1397,6 +1436,11 @@ during migration
 Do not allow changes to the virtual domain configuration while
 migration is taking place. This option is automatically implied
 if doing a peer-2-peer migration.
+
+=item Sys::Virt::Domain::MIGRATE_UNSAFE
+
+Migrate even if the compatibility check indicates the migration
+will be unsafe to the guest.
 
 =back
 
@@ -1733,6 +1777,10 @@ The domain was restored from saved state file
 
 The domain was restored from a snapshot
 
+=item Sys::Virt::Domain::EVENT_STARTED_WAKEUP
+
+The domain was woken up from suspend
+
 =back
 
 =item Sys::Virt::Domain::EVENT_STOPPED
@@ -1832,6 +1880,18 @@ removed by administrator.
 
 =back
 
+=item Sys::Virt::Domain::EVENT_PMSUSPENDED
+
+The domain has stopped running
+
+=over 4
+
+=item Sys::Virt::Domain::EVENT_PMSUSPENDED_UNKNOWN
+
+The domain has suspend for an unknown reason
+
+=back
+
 =back
 
 =head2 EVENT ID CONSTANTS
@@ -1877,6 +1937,18 @@ Completion status of asynchronous block jobs
 =item Sys::Virt::Domain::EVENT_ID_DISK_CHANGE
 
 Changes in disk media
+
+=item Sys::Virt::Domain::EVENT_ID_TRAY_CHANGE
+
+CDROM media tray state
+
+=item Sys::Virt::Domain::EVENT_ID_PMSUSPEND
+
+Power management initiated suspend
+
+=item Sys::Virt::Domain::EVENT_ID_PMWAKEUP
+
+Power management initiated wakeup
 
 =back
 
@@ -1983,6 +2055,22 @@ These constants describe the reason for a disk change event
 =item Sys::Virt::Domain::EVENT_DISK_CHANGE_MISSING_ON_START
 
 The disk media was missing when attempting to start the guest
+
+=back
+
+=head2 TRAY CHANGE CONSTANTS
+
+These constants describe the reason for a tray change event
+
+=over 4
+
+=item Sys::Virt::Domain::EVENT_TRAY_CHANGE_CLOSE
+
+The tray was closed
+
+=item Sys::Virt::Domain::EVENT_TRAY_CHANGE_OPEN
+
+The tray was opened
 
 =back
 
