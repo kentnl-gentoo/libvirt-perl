@@ -4,6 +4,8 @@ examples/auth.pl
 examples/devices.pl
 examples/dump-info.pl
 examples/dump-xml.pl
+examples/emulator-pin.pl
+examples/events.pl
 examples/hv-stat.pl
 examples/node-cpu.pl
 examples/open-console.pl

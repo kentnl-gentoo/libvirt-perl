@@ -95,6 +95,10 @@ Returns a printable string representation of the raw UUID, in the format
 
 Returns a string with a locally unique name of the domain
 
+=item my $hostname = $dom->get_hostname()
+
+Returns a string representing the hostname of the guest
+
 =item my $str = $dom->get_metadata($type, $uri, $flags =0)
 
 Returns the metadata element of type C<$type> associated
@@ -333,6 +337,10 @@ The guest is running after a resume
 =item Sys::Virt::Domain::STATE_RUNNING_WAKEUP
 
 The guest is running after wakeup from power management suspend
+
+=item Sys::Virt::Domain::STATE_BLOCKED_UNKNOWN
+
+The guest is blocked for an unknown reason
 
 =item Sys::Virt::Domain::STATE_SHUTDOWN_UNKNOWN
 
@@ -763,7 +771,14 @@ Fetch information about the security label assigned to the guest
 domain. The returned hash reference has two keys, C<model> gives
 the name of the security model in effect (eg C<selinux>), while
 C<label> provides the name of the security label applied to the
-domain.
+domain. This method only returns information about the first
+security label. To retrieve all labels, use C<get_security_label_list>.
+
+=item @info = $dom->get_security_label_list()
+
+Fetches information about all security labels assigned to the
+guest domain. The elements in the returned array are all
+hash references, whose keys are as described for C<get_security_label>.
 
 =item $ddom = $dom->migrate(destcon, flags, dname, uri, bandwidth)
 
@@ -877,13 +892,29 @@ vCPU is currently scheduled, C<cpuTime> the cummulative execution
 time of the vCPU, C<state> the running state and C<affinity> giving
 the allowed shedular placement. The value for C<affinity> is a
 string representing a bitmask against physical CPUs, 8 cpus per
-character.
+character. To extract the bits use the C<unpack> function with
+the C<b*> template.
 
 =item $dom->pin_vcpu($vcpu, $mask)
 
-Ping the virtual CPU given by index C<$vcpu> to physical CPUs
+Pin the virtual CPU given by index C<$vcpu> to physical CPUs
 given by C<$mask>. The C<$mask> is a string representing a bitmask
 against physical CPUs, 8 cpus per character.
+
+=item $mask = $dom->get_emulator_pin_info()
+
+Obtain information about the CPU affinity of the emulator process.
+The returned C<$mask> is a bitstring against physical CPUs, 8 cpus
+per character. To extract the bits use the C<unpack> function with
+the C<b*> template.
+
+=item $dom->pin_emulator($newmask, $flags=0)
+
+Pin the emulator threads to the physical CPUs identified by the
+affinity in C<$newmask>. The C<$newmask> is a bitstring against
+the physical CPUa, 8 cpus per character. To create a suitable
+bitstring, use the C<vec> function with a value of C<1> for the
+C<BITS> parameter.
 
 =item my @stats = $dom->get_cpu_stats($startCpu, $numCpus, $flags=0)
 
@@ -1959,6 +1990,10 @@ Power management initiated suspend
 =item Sys::Virt::Domain::EVENT_ID_PMWAKEUP
 
 Power management initiated wakeup
+
+=item Sys::Virt::Domain::EVENT_ID_BALLOON_CHANGE
+
+Balloon target changes
 
 =back
 

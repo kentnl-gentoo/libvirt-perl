@@ -666,8 +666,84 @@ _domain_event_block_job_callback(virConnectPtr con,
 }
 
 
+static int
+_domain_event_balloonchange_callback(virConnectPtr con,
+                                     virDomainPtr dom,
+                                     unsigned long long actual,
+                                     void *opaque)
+{
+    AV *data = opaque;
+    SV **self;
+    SV **cb;
+    SV *domref;
+    dSP;
+
+    self = av_fetch(data, 0, 0);
+    cb = av_fetch(data, 1, 0);
+
+    SvREFCNT_inc(*self);
+
+    ENTER;
+    SAVETMPS;
+
+    PUSHMARK(SP);
+    XPUSHs(*self);
+    domref = sv_newmortal();
+    sv_setref_pv(domref, "Sys::Virt::Domain", (void*)dom);
+    virDomainRef(dom);
+    XPUSHs(domref);
+    XPUSHs(sv_2mortal(virt_newSVull(actual)));
+    PUTBACK;
+
+    call_sv(*cb, G_DISCARD);
+
+    FREETMPS;
+    LEAVE;
+
+    return 0;
+}
+
+
 static void
 _domain_event_free(void *opaque)
+{
+  SV *sv = opaque;
+  SvREFCNT_dec(sv);
+}
+
+
+static void
+_close_callback(virConnectPtr con,
+                int reason,
+                void *opaque)
+{
+    AV *data = opaque;
+    SV **self;
+    SV **cb;
+    dSP;
+
+    self = av_fetch(data, 0, 0);
+    cb = av_fetch(data, 1, 0);
+
+    SvREFCNT_inc(*self);
+
+    ENTER;
+    SAVETMPS;
+
+    PUSHMARK(SP);
+    XPUSHs(*self);
+    XPUSHs(sv_2mortal(newSViv(reason)));
+    PUTBACK;
+
+    call_sv(*cb, G_DISCARD);
+
+    FREETMPS;
+    LEAVE;
+}
+
+
+static void
+_close_callback_free(void *opaque)
 {
   SV *sv = opaque;
   SvREFCNT_dec(sv);
@@ -2149,7 +2225,7 @@ PREINIT:
       virConnectDomainEventGenericCallback callback;
     CODE:
       con = (virConnectPtr)SvIV((SV*)SvRV(conref));
-      if (SvOK(domref)) {
+      if (SvROK(domref)) {
           dom = (virDomainPtr)SvIV((SV*)SvRV(domref));
       } else {
           dom = NULL;
@@ -2195,6 +2271,9 @@ PREINIT:
       case VIR_DOMAIN_EVENT_ID_PMWAKEUP:
           callback = VIR_DOMAIN_EVENT_CALLBACK(_domain_event_pmwakeup_callback);
           break;
+      case VIR_DOMAIN_EVENT_ID_BALLOON_CHANGE:
+          callback = VIR_DOMAIN_EVENT_CALLBACK(_domain_event_balloonchange_callback);
+          break;
       default:
           callback = VIR_DOMAIN_EVENT_CALLBACK(_domain_event_generic_callback);
           break;
@@ -2217,6 +2296,32 @@ domain_event_deregister_any(con, callbackID)
       int callbackID;
  PPCODE:
       virConnectDomainEventDeregisterAny(con, callbackID);
+
+
+void
+register_close_callback(conref, cb)
+      SV* conref;
+      SV* cb;
+PREINIT:
+      AV *opaque;
+      virConnectPtr con;
+ PPCODE:
+      con = (virConnectPtr)SvIV((SV*)SvRV(conref));
+      opaque = newAV();
+      SvREFCNT_inc(cb);
+      SvREFCNT_inc(conref);
+      av_push(opaque, conref);
+      av_push(opaque, cb);
+      if (virConnectRegisterCloseCallback(con, _close_callback,
+                                          opaque, _close_callback_free) < 0)
+          _croak_error();
+
+
+void
+unregister_close_callback(con)
+      virConnectPtr con;
+ PPCODE:
+      virConnectUnregisterCloseCallback(con, _close_callback);
 
 
 void
@@ -2376,6 +2481,17 @@ get_name(dom)
       virDomainPtr dom;
     CODE:
       if (!(RETVAL = virDomainGetName(dom)))
+          _croak_error();
+  OUTPUT:
+      RETVAL
+
+
+const char *
+get_hostname(dom, flags=0)
+      virDomainPtr dom;
+      unsigned int flags;
+    CODE:
+      if (!(RETVAL = virDomainGetHostname(dom, flags)))
           _croak_error();
   OUTPUT:
       RETVAL
@@ -3719,6 +3835,27 @@ get_security_label(dom)
 
 
 void
+get_security_label_list(dom)
+      virDomainPtr dom;
+ PREINIT:
+      virSecurityLabelPtr seclabels;
+      int nlabels;
+      int i;
+    PPCODE:
+      if ((nlabels = virDomainGetSecurityLabelList(dom, &seclabels)) < 0)
+          _croak_error();
+
+      EXTEND(SP, nlabels);
+      for (i = 0 ; i < nlabels ; i++) {
+          HV *rec = (HV *)sv_2mortal((SV*)newHV());
+          (void)hv_store (rec, "label", 5, newSVpv(seclabels[i].label, 0), 0);
+          (void)hv_store (rec, "enforcing", 9, newSViv(seclabels[i].enforcing), 0);
+          PUSHs(newRV_noinc((SV*)rec));
+      }
+      free(seclabels);
+
+
+void
 get_cpu_stats(dom, start_cpu, ncpus, flags=0)
       virDomainPtr dom;
       int start_cpu;
@@ -3826,6 +3963,46 @@ PREINIT:
          if (virDomainPinVcpu(dom, vcpu, maps, masklen) < 0)
              _croak_error();
      }
+
+
+void
+pin_emulator(dom, mask, flags=0)
+     virDomainPtr dom;
+     SV *mask;
+     unsigned int flags;
+PREINIT:
+     STRLEN masklen;
+     unsigned char *maps;
+ PPCODE:
+     maps = (unsigned char *)SvPV(mask, masklen);
+     if (virDomainPinEmulator(dom, maps, masklen, flags) < 0)
+         _croak_error();
+
+
+SV *
+get_emulator_pin_info(dom, flags=0)
+      virDomainPtr dom;
+      unsigned int flags;
+ PREINIT:
+      unsigned char *cpumaps;
+      int maplen;
+      virNodeInfo nodeinfo;
+      int nCpus;
+   CODE:
+      if (virNodeGetInfo(virDomainGetConnect(dom), &nodeinfo) < 0)
+          _croak_error();
+
+      nCpus = VIR_NODEINFO_MAXCPUS(nodeinfo);
+      maplen = VIR_CPU_MAPLEN(nCpus);
+      Newx(cpumaps, maplen, unsigned char);
+      if ((virDomainGetEmulatorPinInfo(dom, cpumaps, maplen, flags)) < 0) {
+          Safefree(cpumaps);
+          _croak_error();
+      }
+      RETVAL = newSVpvn((char*)cpumaps, maplen);
+      Safefree(cpumaps);
+ OUTPUT:
+      RETVAL
 
 
 int
@@ -5712,6 +5889,10 @@ BOOT:
       REGISTER_CONSTANT(VIR_NODE_CPU_STATS_ALL_CPUS, NODE_CPU_STATS_ALL_CPUS);
       REGISTER_CONSTANT(VIR_NODE_MEMORY_STATS_ALL_CELLS, NODE_MEMORY_STATS_ALL_CELLS);
 
+      REGISTER_CONSTANT(VIR_CONNECT_CLOSE_REASON_CLIENT, CLOSE_REASON_CLIENT);
+      REGISTER_CONSTANT(VIR_CONNECT_CLOSE_REASON_EOF, CLOSE_REASON_EOF);
+      REGISTER_CONSTANT(VIR_CONNECT_CLOSE_REASON_ERROR, CLOSE_REASON_ERROR);
+      REGISTER_CONSTANT(VIR_CONNECT_CLOSE_REASON_KEEPALIVE, CLOSE_REASON_KEEPALIVE);
 
       stash = gv_stashpv( "Sys::Virt::Event", TRUE );
 
@@ -5761,7 +5942,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_RUNNING_SAVE_CANCELED, STATE_RUNNING_SAVE_CANCELED);
       REGISTER_CONSTANT(VIR_DOMAIN_RUNNING_WAKEUP, STATE_RUNNING_WAKEUP);
 
-      REGISTER_CONSTANT(VIR_DOMAIN_BLOCKED_UNKNOWN, STATE_RUNNING_UNKNOWN);
+      REGISTER_CONSTANT(VIR_DOMAIN_BLOCKED_UNKNOWN, STATE_BLOCKED_UNKNOWN);
 
       REGISTER_CONSTANT(VIR_DOMAIN_PAUSED_UNKNOWN, STATE_PAUSED_UNKNOWN);
       REGISTER_CONSTANT(VIR_DOMAIN_PAUSED_USER, STATE_PAUSED_USER);
@@ -5928,6 +6109,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_PMSUSPEND, EVENT_ID_PMSUSPEND);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_PMWAKEUP, EVENT_ID_PMWAKEUP);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_TRAY_CHANGE, EVENT_ID_TRAY_CHANGE);
+      REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_BALLOON_CHANGE, EVENT_ID_BALLOON_CHANGE);
 
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_WATCHDOG_NONE, EVENT_WATCHDOG_NONE);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_WATCHDOG_PAUSE, EVENT_WATCHDOG_PAUSE);
@@ -5985,9 +6167,9 @@ BOOT:
       REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_IOTUNE_TOTAL_BYTES_SEC, BLOCK_IOTUNE_TOTAL_BYTES_SEC);
       REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_IOTUNE_READ_BYTES_SEC, BLOCK_IOTUNE_READ_BYTES_SEC);
       REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_IOTUNE_WRITE_BYTES_SEC, BLOCK_IOTUNE_WRITE_BYTES_SEC);
-      REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_IOTUNE_TOTAL_IOPS_SEC, BLOCK_IOTUNE_TOTAL_BYTES_SEC);
-      REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_IOTUNE_READ_IOPS_SEC, BLOCK_IOTUNE_READ_BYTES_SEC);
-      REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_IOTUNE_WRITE_IOPS_SEC, BLOCK_IOTUNE_WRITE_BYTES_SEC);
+      REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_IOTUNE_TOTAL_IOPS_SEC, BLOCK_IOTUNE_TOTAL_IOPS_SEC);
+      REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_IOTUNE_READ_IOPS_SEC, BLOCK_IOTUNE_READ_IOPS_SEC);
+      REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_IOTUNE_WRITE_IOPS_SEC, BLOCK_IOTUNE_WRITE_IOPS_SEC);
 
 
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_RESIZE_BYTES, BLOCK_RESIZE_BYTES);
@@ -6119,7 +6301,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_STORAGE_VOL_FILE, TYPE_FILE);
       REGISTER_CONSTANT(VIR_STORAGE_VOL_BLOCK, TYPE_BLOCK);
       REGISTER_CONSTANT(VIR_STORAGE_VOL_DIR, TYPE_DIR);
-      REGISTER_CONSTANT(VIR_STORAGE_VOL_NETWORK, TYPE_DIR);
+      REGISTER_CONSTANT(VIR_STORAGE_VOL_NETWORK, TYPE_NETWORK);
 
       REGISTER_CONSTANT(VIR_STORAGE_VOL_DELETE_NORMAL, DELETE_NORMAL);
       REGISTER_CONSTANT(VIR_STORAGE_VOL_DELETE_ZEROED, DELETE_ZEROED);
@@ -6211,6 +6393,9 @@ BOOT:
       REGISTER_CONSTANT(VIR_FROM_AUTH, FROM_AUTH);
       REGISTER_CONSTANT(VIR_FROM_URI, FROM_URI);
       REGISTER_CONSTANT(VIR_FROM_DBUS, FROM_DBUS);
+      REGISTER_CONSTANT(VIR_FROM_DEVICE, FROM_DEVICE);
+      REGISTER_CONSTANT(VIR_FROM_PARALLELS, FROM_PARALLELS);
+      REGISTER_CONSTANT(VIR_FROM_SSH, FROM_SSH);
 
 
       REGISTER_CONSTANT(VIR_ERR_OK, ERR_OK);
@@ -6297,4 +6482,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_ERR_MIGRATE_UNSAFE, ERR_MIGRATE_UNSAFE);
       REGISTER_CONSTANT(VIR_ERR_OVERFLOW, ERR_OVERFLOW);
       REGISTER_CONSTANT(VIR_ERR_BLOCK_COPY_ACTIVE, ERR_BLOCK_COPY_ACTIVE);
+      REGISTER_CONSTANT(VIR_ERR_AGENT_UNRESPONSIVE, ERR_AGENT_UNRESPONSIVE);
+      REGISTER_CONSTANT(VIR_ERR_OPERATION_UNSUPPORTED, ERR_OPERATION_UNSUPPORTED);
+      REGISTER_CONSTANT(VIR_ERR_SSH, ERR_SSH);
     }

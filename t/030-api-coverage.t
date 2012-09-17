@@ -78,6 +78,7 @@ virConnectDomainEventWatchdogCallback
 virConnectDomainEventPMSuspendCallback
 virConnectDomainEventPMWakeupCallback
 virConnectDomainEventTrayChangeCallback
+virConnectDomainEventBalloonChangeCallback
 
 virEventAddHandleFunc
 virEventAddTimeoutFunc
@@ -89,6 +90,8 @@ virEventUpdateTimeoutFunc
 virStreamEventCallback
 virStreamSinkFunc
 virStreamSourceFunc
+
+virConnectCloseFunc
 
 );
 
