@@ -60,6 +60,8 @@ sub _new {
 	} else {
 	    die "UUID must be either 16 unsigned bytes, or 32/36 hex characters long";
 	}
+    } elsif (exists $params{volume}) {
+	$self = Sys::Virt::StoragePool::_lookup_by_volume($params{volume});
     } elsif (exists $params{xml}) {
 	if ($params{nocreate}) {
 	    $self = Sys::Virt::StoragePool::_define_xml($con,  $params{xml});
@@ -191,7 +193,9 @@ be used with the C<get_volume_by_name> method.
 
 Return a list of all volumes in the storage pool.
 The elements in the returned list are instances of the
-L<Sys::Virt::StorageVol> class.
+L<Sys::Virt::StorageVol> class. This method requires O(n)
+RPC calls, so the C<list_all_volumes> method is
+recommended as a more efficient alternative.
 
 =cut
 
@@ -213,6 +217,13 @@ sub list_volumes {
     return @volumes;
 }
 
+
+=item my @volumes = $dom->list_all_volumes($flags)
+
+Return a list of all storage volumes associated with this domain.
+The elements in the returned list are instances of the
+L<Sys::Virt::StorageVol> class. The C<$flags> parameter can be
+used to filter the list of return storage volumes.
 
 =item my $vol = $pool->get_volume_by_name($name)
 
@@ -355,6 +366,79 @@ XML for storage pools
 
 Return XML describing the inactive state of the storage
 pool.
+
+=back
+
+=head1 LIST FILTERING
+
+The following constants are used to filter object lists
+
+=over 4
+
+=item Sys::Virt::StoragePool::LIST_ACTIVE
+
+Include storage pools which are active
+
+=item Sys::Virt::StoragePool::LIST_INACTIVE
+
+Include storage pools which are inactive
+
+=item Sys::Virt::StoragePool::LIST_AUTOSTART
+
+Include storage pools which are marked for autostart
+
+=item Sys::Virt::StoragePool::LIST_NO_AUTOSTART
+
+Include storage pools which are not marked for autostart
+
+=item Sys::Virt::StoragePool::LIST_PERSISTENT
+
+Include storage pools which are persistent
+
+=item Sys::Virt::StoragePool::LIST_TRANSIENT
+
+Include storage pools which are transient
+
+=item Sys::Virt::StoragePool::LIST_DIR
+
+Include directory storage pools
+
+=item Sys::Virt::StoragePool::LIST_DISK
+
+Include disk storage pools
+
+=item Sys::Virt::StoragePool::LIST_FS
+
+Include filesytem storage pools
+
+=item Sys::Virt::StoragePool::LIST_ISCSI
+
+Include iSCSI storage pools
+
+=item Sys::Virt::StoragePool::LIST_LOGICAL
+
+Include LVM storage pools
+
+=item Sys::Virt::StoragePool::LIST_MPATH
+
+Include multipath storage pools
+
+=item Sys::Virt::StoragePool::LIST_NETFS
+
+Include network filesystem storage pools
+
+=item Sys::Virt::StoragePool::LIST_RBD
+
+Include RBD storage pools
+
+=item Sys::Virt::StoragePool::LIST_SCSI
+
+Include SCSI storage pools
+
+=item Sys::Virt::StoragePool::LIST_SHEEPDOG
+
+Include sheepdog storage pools
+
 
 =back
 

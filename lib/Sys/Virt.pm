@@ -78,7 +78,7 @@ use Sys::Virt::NWFilter;
 use Sys::Virt::DomainSnapshot;
 use Sys::Virt::Stream;
 
-our $VERSION = '0.10.0';
+our $VERSION = '0.10.2';
 require XSLoader;
 XSLoader::load('Sys::Virt', $VERSION);
 
@@ -449,12 +449,14 @@ the VMM. The names can be used with the C<get_domain_by_name> method.
 Return a list of all domains currently known to the VMM, whether
 running or shutoff. The elements in the returned list are instances
 of the L<Sys::Virt::Domain> class. The C<$flags> parameter can be
-used to filter the list of return domains.
+used to filter the list of returned domains.
 
 =item my @nets = $vmm->list_networks()
 
 Return a list of all networks currently known to the VMM. The elements
 in the returned list are instances of the L<Sys::Virt::Network> class.
+This method requires O(n) RPC calls, so the C<list_all_networks> method
+is recommended as a more efficient alternative.
 
 =cut
 
@@ -490,7 +492,8 @@ be used with the C<get_network_by_name> method.
 
 Return a list of all networks defined, but not currently running, on the
 VMM. The elements in the returned list are instances of the
-L<Sys::Virt::Network> class.
+L<Sys::Virt::Network> class. This method requires O(n) RPC calls, so the
+C<list_all_networks> method is recommended as a more efficient alternative.
 
 =cut
 
@@ -522,10 +525,19 @@ used as the C<maxnames> parameter to C<list_defined_network_names>.
 Return a list of names of all networks defined, but not currently running, on
 the host. The names can be used with the C<get_network_by_name> method.
 
+=item my @nets = $vmm->list_all_networks($flags)
+
+Return a list of all networks currently known to the VMM, whether
+running or shutoff. The elements in the returned list are instances
+of the L<Sys::Virt::Network> class. The C<$flags> parameter can be
+used to filter the list of returned networks.
+
 =item my @pools = $vmm->list_storage_pools()
 
 Return a list of all storage pools currently known to the host. The elements
 in the returned list are instances of the L<Sys::Virt::StoragePool> class.
+This method requires O(n) RPC calls, so the C<list_all_storage_pools> method
+is recommended as a more efficient alternative.
 
 =cut
 
@@ -561,7 +573,8 @@ be used with the C<get_network_by_id> method.
 
 Return a list of all storage pools defined, but not currently running, on the
 host. The elements in the returned list are instances of the
-L<Sys::Virt::StoragePool> class.
+L<Sys::Virt::StoragePool> class. This method requires O(n) RPC calls, so the
+C<list_all_storage_pools> method is recommended as a more efficient alternative.
 
 =cut
 
@@ -593,12 +606,21 @@ used as the C<maxnames> parameter to C<list_defined_storage_pool_names>.
 Return a list of names of all storage pools defined, but not currently running, on
 the host. The names can be used with the C<get_storage_pool_by_name> method.
 
+=item my @pools = $vmm->list_all_storage_pools($flags)
+
+Return a list of all storage pools currently known to the VMM, whether
+running or shutoff. The elements in the returned list are instances
+of the L<Sys::Virt::StoragePool> class. The C<$flags> parameter can be
+used to filter the list of returned pools.
+
 =item my @devs = $vmm->list_node_devices($capability)
 
 Return a list of all devices currently known to the host OS. The elements
 in the returned list are instances of the L<Sys::Virt::NodeDevice> class.
 The optional C<capability> parameter allows the list to be restricted to
-only devices with a particular capability type.
+only devices with a particular capability type. This method requires O(n)
+RPC calls, so the C<list_all_node_devices> method is recommended as a
+more efficient alternative.
 
 =cut
 
@@ -639,10 +661,19 @@ only devices with a particular capability type, and should be left
 as C<undef> if the full list is required. The optional <flags>
 parameter is currently unused and defaults to 0 if omitted.
 
+=item my @devs = $vmm->list_all_node_devices($flags)
+
+Return a list of all node devices currently known to the VMM. The
+elements in the returned list are instances of the
+L<Sys::Virt::NodeDevice> class. The C<$flags> parameter can be
+used to filter the list of returned devices.
+
 =item my @ifaces = $vmm->list_interfaces()
 
 Return a list of all network interfaces currently known to the VMM. The elements
 in the returned list are instances of the L<Sys::Virt::Interface> class.
+This method requires O(n) RPC calls, so the C<list_all_interfaces> method is
+recommended as a more efficient alternative.
 
 =cut
 
@@ -678,6 +709,8 @@ be used with the C<get_interface_by_name> method.
 
 Return a list of all network interfaces currently known to the VMM. The elements
 in the returned list are instances of the L<Sys::Virt::Interface> class.
+This method requires O(n) RPC calls, so the C<list_all_interfaces> method is
+recommended as a more efficient alternative.
 
 =cut
 
@@ -709,10 +742,19 @@ used as the C<maxnames> parameter to C<list_defined_interface_names>.
 Return a list of inactive interface names currently known to the VMM. The names can
 be used with the C<get_interface_by_name> method.
 
+=item my @ifaces = $vmm->list_all_interfaces($flags)
+
+Return a list of all interfaces currently known to the VMM, whether
+running or shutoff. The elements in the returned list are instances
+of the L<Sys::Virt::Interface> class. The C<$flags> parameter can be
+used to filter the list of returned interfaces.
+
 =item my @ifaces = $vmm->list_secrets()
 
 Return a list of all secrets currently known to the VMM. The elements
 in the returned list are instances of the L<Sys::Virt::Secret> class.
+This method requires O(n) RPC calls, so the C<list_all_secrets> method
+is recommended as a more efficient alternative.
 
 =cut
 
@@ -744,10 +786,19 @@ used as the C<maxuuids> parameter to C<list_secrets>.
 Return a list of all secret uuids currently known to the VMM. The uuids can
 be used with the C<get_secret_by_uuid> method.
 
+=item my @secrets = $vmm->list_all_secrets($flags)
+
+Return a list of all secrets currently known to the VMM. The elements
+in the returned list are instances of the L<Sys::Virt::Network> class.
+The C<$flags> parameter can be used to filter the list of returned
+secrets.
+
 =item my @nets = $vmm->list_nwfilters()
 
 Return a list of all nwfilters currently known to the VMM. The elements
 in the returned list are instances of the L<Sys::Virt::NWFilter> class.
+This method requires O(n) RPC calls, so the C<list_all_nwfilters> method
+is recommended as a more efficient alternative.
 
 =cut
 
@@ -779,7 +830,12 @@ used as the C<maxids> parameter to C<list_nwfilter_names>.
 Return a list of all nwfilter names currently known to the VMM. The names can
 be used with the C<get_nwfilter_by_name> method.
 
-=cut
+=item my @nwfilters = $vmm->list_all_nwfilters($flags)
+
+Return a list of all nwfilters currently known to the VMM. The elements
+in the returned list are instances of the L<Sys::Virt::NWFilter> class.
+The C<$flags> parameter can be used to filter the list of returned
+secrets.
 
 =item $vmm->define_save_image_xml($file, $dxml, $flags=0)
 
@@ -896,6 +952,22 @@ sub get_storage_pool_by_uuid {
     my $uuid = shift;
 
     return Sys::Virt::StoragePool->_new(connection => $self, uuid => $uuid);
+}
+
+
+=item my $pool = $vmm->get_storage_pool_by_volume($vol)
+
+Return the storage pool with a storage volume C<$vol>. The C<$vol> parameter
+must be an instance of the L<Sys::Virt::StorageVol> class. The returned object is
+an instance of the L<Sys::Virt::StoragePool> class.
+
+=cut
+
+sub get_storage_pool_by_volume {
+    my $self = shift;
+    my $volume = shift;
+
+    return Sys::Virt::StoragePool->_new(connection => $self, volume => $volume);
 }
 
 
@@ -1295,6 +1367,21 @@ The memory consumed for cache
 
 =back
 
+=item my $params = $conn->get_node_memory_parameters($flags=0)
+
+Return a hash reference containing the set of memory tunable
+parameters for the node. The keys in the hash are one of the
+constants MEMORY PARAMETERS described later. The C<$flags>
+parameter is currently unused, and defaults to 0 if omitted.
+
+=item $conn->set_node_memory_parameters($params, $flags=0)
+
+Update the memory tunable parameters for the node. The
+C<$params> should be a hash reference whose keys are one
+of the MEMORY PARAMETERS constants. The C<$flags>
+parameter is currently unused, and defaults to 0 if omitted.
+
+
 =item $conn->node_suspend_for_duration($target, $duration, $flags=0)
 
 Suspend the the host, using mode C<$target> which is one of the NODE
@@ -1552,6 +1639,43 @@ Request statistics for all memory cells
 
 =back
 
+=head2 MEMORY PARAMETERS
+
+The following constants are used to name memory
+parameters of the node
+
+=over 4
+
+=item Sys::Virt::NODE_MEMORY_SHARED_FULL_SCANS
+
+How many times all mergeable areas have been scanned.
+
+=item Sys::Virt::NODE_MEMORY_SHARED_PAGES_SHARED
+
+How many the shared memory pages are being used.
+
+=item Sys::Virt::NODE_MEMORY_SHARED_PAGES_SHARING
+
+How many sites are sharing the pages
+
+=item Sys::Virt::NODE_MEMORY_SHARED_PAGES_TO_SCAN
+
+How many present pages to scan before the shared memory service goes to sleep
+
+=item Sys::Virt::NODE_MEMORY_SHARED_PAGES_UNSHARED
+
+How many pages unique but repeatedly checked for merging.
+
+=item Sys::Virt::NODE_MEMORY_SHARED_PAGES_VOLATILE
+
+How many pages changing too fast to be placed in a tree.
+
+=item Sys::Virt::NODE_MEMORY_SHARED_SLEEP_MILLISECS
+
+How many milliseconds the shared memory service should sleep before next scan.
+
+=back
+
 =head2 CLOSE REASON CONSTANTS
 
 The following constants related to the connection close callback,
@@ -1576,6 +1700,58 @@ connection
 
 The connection keepalive timer triggered due to lack of response
 from the server
+
+=back
+
+=head2 CPU STATS CONSTANTS
+
+The following constants provide the names of known CPU stats fields
+
+=over 4
+
+=item Sys::Virt::NODE_CPU_STATS_IDLE
+
+Time spent idle
+
+=item Sys::Virt::NODE_CPU_STATS_IOWAIT
+
+Time spent waiting for I/O to complete
+
+=item Sys::Virt::NODE_CPU_STATS_KERNEL
+
+Time spent executing kernel code
+
+=item Sys::Virt::NODE_CPU_STATS_USER
+
+Time spent executing user code
+
+=item Sys::Virt::NODE_CPU_STATS_UTILIZATION
+
+Percentage utilization of the CPU.
+
+=back
+
+=head2 MEMORY STAS CONSTANTS
+
+The following constants provide the names of known memory stats fields
+
+=over 4
+
+=item Sys::Virt::NODE_MEMORY_STATS_BUFFERS
+
+The amount of memory consumed by I/O buffers
+
+=item Sys::Virt::NODE_MEMORY_STATS_CACHED
+
+The amount of memory consumed by disk cache
+
+=item Sys::Virt::NODE_MEMORY_STATS_FREE
+
+The amount of free memory
+
+=item Sys::Virt::NODE_MEMORY_STATS_TOTAL
+
+The total amount of memory
 
 =back
 

@@ -617,25 +617,33 @@ call
 
 Return a hash reference containing the set of memory tunable
 parameters for the guest. The keys in the hash are one of the
-constants MEMORY PARAMETERS described later.
+constants MEMORY PARAMETERS described later. The C<$flags>
+parameter accepts one or more the CONFIG OPTION constants
+documented later, and defaults to 0 if omitted.
 
 =item $dom->set_memory_parameters($params, $flags=0)
 
 Update the memory tunable parameters for the guest. The
 C<$params> should be a hash reference whose keys are one
-of the MEMORY PARAMETERS constants.
+of the MEMORY PARAMETERS constants. The C<$flags>
+parameter accepts one or more the CONFIG OPTION constants
+documented later, and defaults to 0 if omitted.
 
 =item my $params = $dom->get_blkio_parameters($flags=0)
 
 Return a hash reference containing the set of blkio tunable
 parameters for the guest. The keys in the hash are one of the
-constants BLKIO PARAMETERS described later.
+constants BLKIO PARAMETERS described later. The C<$flags>
+parameter accepts one or more the CONFIG OPTION constants
+documented later, and defaults to 0 if omitted.
 
 =item $dom->set_blkio_parameters($params, $flags=0)
 
 Update the blkio tunable parameters for the guest. The
 C<$params> should be a hash reference whose keys are one
-of the BLKIO PARAMETERS constants.
+of the BLKIO PARAMETERS constants. The C<$flags>
+parameter accepts one or more the CONFIG OPTION constants
+documented later, and defaults to 0 if omitted.
 
 =item $stats = $dom->get_block_iotune($disk, $flags=0)
 
@@ -665,13 +673,17 @@ of the INTERFACE PARAMETERS constants.
 
 Return a hash reference containing the set of numa tunable
 parameters for the guest. The keys in the hash are one of the
-constants NUMA PARAMETERS described later.
+constants NUMA PARAMETERS described later. The C<$flags>
+parameter accepts one or more the CONFIG OPTION constants
+documented later, and defaults to 0 if omitted.
 
 =item $dom->set_numa_parameters($params, $flags=0)
 
 Update the numa tunable parameters for the guest. The
 C<$params> should be a hash reference whose keys are one
-of the NUMA PARAMETERS constants.
+of the NUMA PARAMETERS constants. The C<$flags>
+parameter accepts one or more the CONFIG OPTION constants
+documented later, and defaults to 0 if omitted.
 
 =item $dom->block_resize($disk, $newsize, $flags=0)
 
@@ -956,10 +968,17 @@ Merge the backing files associated with C<$path> into the
 top level file. The C<$bandwidth> parameter specifies the
 maximum I/O rate to allow in MB/s.
 
-=item $dom->block_rebase($path, $backingpath, $bandwith, $flags=0)
+=item $dom->block_rebase($path, $base, $bandwith, $flags=0)
 
 Switch the backing path associated with C<$path> to instead
-use C<$backingpath>. The C<$bandwidth> parameter specifies the
+use C<$base>. The C<$bandwidth> parameter specifies the
+maximum I/O rate to allow in MB/s.
+
+=item $dom->block_commit($path, $base, $top, $bandwith, $flags=0)
+
+Commit changes there were made to the temporary top level file C<$top>.
+Takes all the differences between C<$top> and C<$base> and merge them
+into C<$base>. The C<$bandwidth> parameter specifies the
 maximum I/O rate to allow in MB/s.
 
 =item $count = $dom->num_of_snapshots()
@@ -1927,9 +1946,9 @@ The domain has stopped running
 
 =over 4
 
-=item Sys::Virt::Domain::EVENT_PMSUSPENDED_UNKNOWN
+=item Sys::Virt::Domain::EVENT_PMSUSPENDED_MEMORY
 
-The domain has suspend for an unknown reason
+The domain has suspend to RAM.
 
 =back
 
@@ -2138,6 +2157,10 @@ The block pull job type
 
 The block copy job type
 
+=item Sys::Virt::Domain::BLOCK_JOB_TYPE_COMMIT
+
+The block commit job type
+
 =back
 
 =head2 DOMAIN BLOCK JOB COMPLETION CONSTANTS
@@ -2198,6 +2221,22 @@ Request only, do not wait for completion
 =item Sys::Virt::Domain::BLOCK_JOB_ABORT_PIVOT
 
 Pivot to mirror when ending a copy job
+
+=back
+
+=head2 DOMAIN BLOCK COMMIT JOB CONSTANTS
+
+The following constants are useful with block commit job types
+
+=over 4
+
+=item Sys::Virt::Domain::BLOCK_COMMIT_DELETE
+
+Delete any files that are invalid after commit
+
+=item Sys::Virt::Domain::BLOCK_COMMIT_SHALLOW
+
+NULL base means next backing file, not whole chain
 
 =back
 
@@ -2454,6 +2493,108 @@ Only list domains that are currently shutoff
 =item Sys::Virt::Domain::LIST_TRANSIENT
 
 Only list domains that do not have a persistent config
+
+=back
+
+=head2 SEND KEY CONSTANTS
+
+The following constants are to be used with the C<send_key>
+API
+
+=over 4
+
+=item Sys::Virt::Domain::SEND_KEY_MAX_KEYS
+
+The maximum number of keys that can be sent in a single
+call to C<send_key>
+
+=back
+
+=head2 BLOCK STATS CONSTANTS
+
+The following constants provide the names of well known
+block stats fields
+
+=over 4
+
+=item Sys::Virt::Domain::BLOCK_STATS_ERRS
+
+The number of I/O errors
+
+=item Sys::Virt::Domain::BLOCK_STATS_FLUSH_REQ
+
+The number of flush requests
+
+=item Sys::Virt::Domain::BLOCK_STATS_FLUSH_TOTAL_TIMES
+
+The time spent processing flush requests
+
+=item Sys::Virt::Domain::BLOCK_STATS_READ_BYTES
+
+The amount of data read
+
+=item Sys::Virt::Domain::BLOCK_STATS_READ_REQ
+
+The number of read requests
+
+=item Sys::Virt::Domain::BLOCK_STATS_READ_TOTAL_TIMES
+
+The time spent processing read requests
+
+=item Sys::Virt::Domain::BLOCK_STATS_WRITE_BYTES
+
+The amount of data written
+
+=item Sys::Virt::Domain::BLOCK_STATS_WRITE_REQ
+
+The number of write requests
+
+=item Sys::Virt::Domain::BLOCK_STATS_WRITE_TOTAL_TIMES
+
+The time spent processing write requests
+
+=back
+
+=head2 CPU STATS CONSTANTS
+
+The following constants provide the names of well known
+cpu stats fields
+
+=over 4
+
+=item Sys::Virt::Domain::CPU_STATS_CPUTIME
+
+The total CPU time, including both hypervisor and
+vCPU time.
+
+=item Sys::Virt::Domain::CPU_STATS_USERTIME
+
+THe total time in kernel
+
+=item Sys::Virt::Domain::CPU_STATS_SYSTEMTIME
+
+The total time in userspace
+
+=item Sys::Virt::Domain::CPU_STATS_VCPUTIME
+
+The total vCPU time.
+
+=back
+
+=head2 CPU STATS CONSTANTS
+
+The following constants provide the names of well known
+schedular parameters
+
+=over 4
+
+=item Sys::Virt::SCHEDULER_EMULATOR_PERIOD
+
+The duration of the time period for scheduling the emulator
+
+=item Sys::Virt::SCHEDULER_EMULATOR_QUOTA
+
+The quota for the emulator in one schedular time period
 
 =back
 
