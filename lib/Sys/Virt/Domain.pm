@@ -384,7 +384,11 @@ It is not known why the domain has shutoff
 
 =item Sys::Virt::Domain::STATE_PMSUSPENDED_UNKNOWN
 
-It is not known why the domain was suspended
+It is not known why the domain was suspended to RAM
+
+=item Sys::Virt::Domain::STATE_PMSUSPENDED_DISK_UNKNOWN
+
+It is not known why the domain was suspended to disk
 
 =back
 
@@ -941,6 +945,60 @@ containing stats for one CPU.
 Returns a hash reference summarising the execution state of the
 background job. The elements of the hash are as follows:
 
+=over 4
+
+=item type
+
+The type of job, one of the JOB TYPE constants listed later in
+this document.
+
+=item timeElapsed
+
+The elapsed time in milliseconds
+
+=item timeRemaining
+
+The expected remaining time in milliseconds. Only set if the
+C<type> is JOB_UNBOUNDED.
+
+=item dataTotal
+
+The total amount of data expected to be processed by the job, in bytes.
+
+=item dataProcessed
+
+The current amount of data processed by the job, in bytes.
+
+=item dataRemaining
+
+The expected amount of data remaining to be processed by the job, in bytes.
+
+=item memTotal
+
+The total amount of mem expected to be processed by the job, in bytes.
+
+=item memProcessed
+
+The current amount of mem processed by the job, in bytes.
+
+=item memRemaining
+
+The expected amount of mem remaining to be processed by the job, in bytes.
+
+=item fileTotal
+
+The total amount of file expected to be processed by the job, in bytes.
+
+=item fileProcessed
+
+The current amount of file processed by the job, in bytes.
+
+=item fileRemaining
+
+The expected amount of file remaining to be processed by the job, in bytes.
+
+=back
+
 =item $dom->abort_job()
 
 Aborts the currently executing job
@@ -1051,7 +1109,8 @@ Returns the currently active snapshot for the domain.
 
 =item $snapshot = $dom->create_snapshot($xml[, $flags])
 
-Create a new snapshot from the C<$xml>.
+Create a new snapshot from the C<$xml>. The C<$flags> parameter accepts
+the B<SNAPSHOT CREATION> constants listed in C<Sys::Virt::DomainSnapshots>.
 
 =cut
 
@@ -1064,63 +1123,6 @@ sub create_snapshot {
 
     return $snapshot;
 }
-
-=over 4
-
-=item type
-
-The type of job, one of the JOB TYPE constants listed later in
-this document.
-
-=item timeElapsed
-
-The elapsed time in milliseconds
-
-=item timeRemaining
-
-The expected remaining time in milliseconds. Only set if the
-C<type> is JOB_UNBOUNDED.
-
-=item dataTotal
-
-The total amount of data expected to be processed by the job, in bytes.
-
-=item dataProcessed
-
-The current amount of data processed by the job, in bytes.
-
-=item dataRemaining
-
-The expected amount of data remaining to be processed by the job, in bytes.
-
-=item memTotal
-
-The total amount of mem expected to be processed by the job, in bytes.
-
-=item memProcessed
-
-The current amount of mem processed by the job, in bytes.
-
-=item memRemaining
-
-The expected amount of mem remaining to be processed by the job, in bytes.
-
-=item fileTotal
-
-The total amount of file expected to be processed by the job, in bytes.
-
-=item fileProcessed
-
-The current amount of file processed by the job, in bytes.
-
-=item fileRemaining
-
-The expected amount of file remaining to be processed by the job, in bytes.
-
-=back
-
-=cut
-
 
 1;
 
@@ -1370,6 +1372,10 @@ passwords.
 
 Update the CPU model definition to match the current executing
 state.
+
+=item Sys::Virt::Domain::XML_MIGRATABLE
+
+Update the XML to allow migration to older versions of libvirt
 
 =back
 
@@ -1950,6 +1956,10 @@ The domain has stopped running
 
 The domain has suspend to RAM.
 
+=item Sys::Virt::Domain::EVENT_PMSUSPENDED_DISK
+
+The domain has suspend to Disk.
+
 =back
 
 =back
@@ -2004,7 +2014,11 @@ CDROM media tray state
 
 =item Sys::Virt::Domain::EVENT_ID_PMSUSPEND
 
-Power management initiated suspend
+Power management initiated suspend to RAM
+
+=item Sys::Virt::Domain::EVENT_ID_PMSUSPEND_DISK
+
+Power management initiated suspend to Disk
 
 =item Sys::Virt::Domain::EVENT_ID_PMWAKEUP
 
@@ -2181,6 +2195,10 @@ An unsuccessful block job
 =item Sys::Virt::Domain::BLOCK_JOB_CANCELED
 
 A block job canceled byy the user
+
+=item Sys::Virt::Domain::BLOCK_JOB_READY
+
+A block job is running
 
 =back
 

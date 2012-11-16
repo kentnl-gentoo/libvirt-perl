@@ -25,7 +25,7 @@ Sys::Virt - Represent and manage a libvirt hypervisor connection
 
 =head1 SYNOPSIS
 
-  my $vmm = Sys::Virt->new(address => $addr);
+  my $vmm = Sys::Virt->new(uri => $uri);
 
   my @domains = $vmm->list_domains();
 
@@ -47,7 +47,7 @@ will result in an instance of the L<Sys::Virt::Error> module being
 thrown. To catch these errors, simply wrap the method in an eval
 block:
 
-  eval { my $vmm = Sys::Virt->new(address => $addr); };
+  eval { my $vmm = Sys::Virt->new(uri => $uri); };
   if ($@) {
     print STDERR "Unable to open connection to $addr" . $@->message . "\n";
   }
@@ -78,14 +78,14 @@ use Sys::Virt::NWFilter;
 use Sys::Virt::DomainSnapshot;
 use Sys::Virt::Stream;
 
-our $VERSION = '0.10.2';
+our $VERSION = '1.0.0';
 require XSLoader;
 XSLoader::load('Sys::Virt', $VERSION);
 
 =item my $vmm = Sys::Virt->new(uri => $uri, readonly => $ro, flags => $flags);
 
-Attach to the virtual machine monitor with the address of C<address>. The
-uri parameter may be omitted, in which case the default connection made
+Attach to the virtualization host identified by C<uri>. The
+C<uri> parameter may be omitted, in which case the default connection made
 will be to the local Xen hypervisor. Some example URIs include:
 
 =over 4
@@ -146,11 +146,11 @@ be set with a default result if applicable
 
 As a simple example returning hardcoded credentials
 
-    my $address  = "qemu+tcp://192.168.122.1/system";
+    my $uri  = "qemu+tcp://192.168.122.1/system";
     my $username = "test";
     my $password = "123456";
 
-    my $con = Sys::Virt->new(address => $address,
+    my $con = Sys::Virt->new(uri => $uri,
                              auth => 1,
                              credlist => [
                                Sys::Virt::CRED_AUTHNAME,
@@ -170,6 +170,11 @@ As a simple example returning hardcoded credentials
                }
                return 0;
          });
+
+
+For backwards compatibility with earlier releases, the C<address>
+parameter is accepted as a synonym for the C<uri> parameter. The
+use of C<uri> is recommended for all newly written code.
 
 =cut
 
@@ -1279,7 +1284,7 @@ The model of the CPU, eg x86_64
 
 =item cpus
 
-The total number of logical CPUs
+The total number of logical CPUs.
 
 =item mhz
 
@@ -1302,6 +1307,22 @@ The number of cores per socket
 The number of threads per core
 
 =back
+
+NB, more accurate information about the total number of CPUs
+and those online can be obtained using the C<get_node_cpu_map>
+method.
+
+=item my ($totcpus, $onlinemap, $totonline) = $con->get_node_cpu_map();
+
+Returns an array containing information about the CPUs available
+on the host. The first element, C<totcpus>, specifies the total
+number of CPUs available to the host regardles of their online
+stat. The second element, C<onlinemap>, provides a bitmap detailing
+which CPUs are currently online. The third element, C<totonline>,
+specifies the total number of online CPUs. The values in the bitmap
+can be extracted using the C<unpack> method as follows:
+
+  my @onlinemap = split(//, unpack("b*", $onlinemap));
 
 =item my $info = $con->get_node_cpu_stats($cpuNum=-1, $flags=0)
 
@@ -1361,7 +1382,7 @@ The free memory
 
 The memory consumed by buffers
 
-=item cache
+=item cached
 
 The memory consumed for cache
 

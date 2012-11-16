@@ -512,6 +512,44 @@ _domain_event_pmsuspend_callback(virConnectPtr con,
 
 
 static int
+_domain_event_pmsuspend_disk_callback(virConnectPtr con,
+                                      virDomainPtr dom,
+                                      int reason,
+                                      void *opaque)
+{
+    AV *data = opaque;
+    SV **self;
+    SV **cb;
+    SV *domref;
+    dSP;
+
+    self = av_fetch(data, 0, 0);
+    cb = av_fetch(data, 1, 0);
+
+    SvREFCNT_inc(*self);
+
+    ENTER;
+    SAVETMPS;
+
+    PUSHMARK(SP);
+    XPUSHs(*self);
+    domref = sv_newmortal();
+    sv_setref_pv(domref, "Sys::Virt::Domain", (void*)dom);
+    virDomainRef(dom);
+    XPUSHs(domref);
+    XPUSHs(sv_2mortal(newSViv(reason)));
+    PUTBACK;
+
+    call_sv(*cb, G_DISCARD);
+
+    FREETMPS;
+    LEAVE;
+
+    return 0;
+}
+
+
+static int
 _domain_event_io_error_reason_callback(virConnectPtr con,
                                        virDomainPtr dom,
                                        const char *srcPath,
@@ -1254,13 +1292,24 @@ vir_typed_param_from_hv(HV *newparams, virTypedParameter *params, int nparams)
     unsigned int i;
     char * ptr;
     STRLEN len;
-    int needString = 0;
+    int ret = 0;
 
+    /* We only want to set parameters which we're actually changing
+     * so here we figure out which elements of 'params' we need to
+     * update, and overwrite the others
+     */
     for (i = 0 ; i < nparams ; i++) {
-        SV **val;
-
-        if (!hv_exists(newparams, params[i].field, strlen(params[i].field)))
+        if (!hv_exists(newparams, params[i].field, strlen(params[i].field))) {
+            if ((nparams-i) > 1)
+                memmove(params+i, params+i+1, sizeof(*params)*(nparams-(i+1)));
             continue;
+        }
+
+        ret++;
+    }
+
+    for (i = 0 ; i < ret ; i++) {
+        SV **val;
 
         val = hv_fetch (newparams, params[i].field, strlen(params[i].field), 0);
 
@@ -1290,13 +1339,13 @@ vir_typed_param_from_hv(HV *newparams, virTypedParameter *params, int nparams)
             break;
 
         case VIR_TYPED_PARAM_STRING:
-            needString = 1;
             ptr = SvPV(*val, len);
             params[i].value.s = (char *)ptr;
             break;
         }
     }
-    return needString;
+
+    return ret;
 }
 
 
@@ -1554,6 +1603,23 @@ get_node_security_model(con)
    OUTPUT:
       RETVAL
 
+void
+get_node_cpu_map(con, flags=0)
+      virConnectPtr con;
+      unsigned int flags;
+ PREINIT:
+      unsigned char *cpumaps;
+      unsigned int online;
+      int ncpus;
+  PPCODE:
+      if ((ncpus = virNodeGetCPUMap(con, &cpumaps, &online, flags)) < 0)
+          _croak_error();
+
+      EXTEND(SP, 3);
+      PUSHs(sv_2mortal(newSViv(ncpus)));
+      PUSHs(sv_2mortal(newSVpvn((char*)cpumaps, VIR_CPU_MAPLEN(ncpus))));
+      PUSHs(sv_2mortal(newSViv(online)));
+      free(cpumaps);
 
 SV *
 get_node_free_memory(con)
@@ -1649,11 +1715,11 @@ PREINIT:
       RETVAL = (HV *)sv_2mortal((SV*)newHV());
       for (i = 0 ; i < nparams ; i++) {
           if (strcmp(params[i].field, VIR_NODE_MEMORY_STATS_TOTAL) == 0) {
-              (void)hv_store (RETVAL, "total", 6, virt_newSVull(params[i].value), 0);
+              (void)hv_store (RETVAL, "total", 5, virt_newSVull(params[i].value), 0);
           } else if (strcmp(params[i].field, VIR_NODE_MEMORY_STATS_FREE) == 0) {
               (void)hv_store (RETVAL, "free", 4, virt_newSVull(params[i].value), 0);
           } else if (strcmp(params[i].field, VIR_NODE_MEMORY_STATS_BUFFERS) == 0) {
-              (void)hv_store (RETVAL, "buffers", 4, virt_newSVull(params[i].value), 0);
+              (void)hv_store (RETVAL, "buffers", 7, virt_newSVull(params[i].value), 0);
           } else if (strcmp(params[i].field, VIR_NODE_MEMORY_STATS_CACHED) == 0) {
               (void)hv_store (RETVAL, "cached", 6, virt_newSVull(params[i].value), 0);
           }
@@ -1708,7 +1774,7 @@ set_node_memory_parameters(conn, newparams, flags=0)
           _croak_error();
       }
 
-      vir_typed_param_from_hv(newparams, params, nparams);
+      nparams = vir_typed_param_from_hv(newparams, params, nparams);
 
       if (virNodeSetMemoryParameters(conn, params, nparams, flags) < 0)
           _croak_error();
@@ -1717,7 +1783,7 @@ set_node_memory_parameters(conn, newparams, flags=0)
 
 
 void
-node_suspend_for_duration(conn, target, duration, flags)
+node_suspend_for_duration(conn, target, duration, flags=0)
       virConnectPtr conn;
       unsigned int target;
       SV *duration;
@@ -2447,6 +2513,9 @@ PREINIT:
       case VIR_DOMAIN_EVENT_ID_PMSUSPEND:
           callback = VIR_DOMAIN_EVENT_CALLBACK(_domain_event_pmsuspend_callback);
           break;
+      case VIR_DOMAIN_EVENT_ID_PMSUSPEND_DISK:
+          callback = VIR_DOMAIN_EVENT_CALLBACK(_domain_event_pmsuspend_disk_callback);
+          break;
       case VIR_DOMAIN_EVENT_ID_PMWAKEUP:
           callback = VIR_DOMAIN_EVENT_CALLBACK(_domain_event_pmwakeup_callback);
           break;
@@ -2766,7 +2835,7 @@ resume(dom)
 
 
 void
-pm_wakeup(dom, flags)
+pm_wakeup(dom, flags=0)
       virDomainPtr dom;
       unsigned int flags;
   PPCODE:
@@ -3140,7 +3209,7 @@ set_scheduler_parameters(dom, newparams, flags=0)
               _croak_error();
           }
       }
-      vir_typed_param_from_hv(newparams, params, nparams);
+      nparams = vir_typed_param_from_hv(newparams, params, nparams);
       if (flags) {
           if (virDomainSetSchedulerParametersFlags(dom, params, nparams, flags) < 0)
               _croak_error();
@@ -3196,7 +3265,7 @@ set_memory_parameters(dom, newparams, flags=0)
           _croak_error();
       }
 
-      vir_typed_param_from_hv(newparams, params, nparams);
+      nparams = vir_typed_param_from_hv(newparams, params, nparams);
 
       if (virDomainSetMemoryParameters(dom, params, nparams, flags) < 0)
           _croak_error();
@@ -3248,7 +3317,7 @@ set_numa_parameters(dom, newparams, flags=0)
           _croak_error();
       }
 
-      vir_typed_param_from_hv(newparams, params, nparams);
+      nparams = vir_typed_param_from_hv(newparams, params, nparams);
 
       if (virDomainSetNumaParameters(dom, params, nparams, flags) < 0)
           _croak_error();
@@ -3288,7 +3357,6 @@ set_blkio_parameters(dom, newparams, flags=0)
   PREINIT:
       virTypedParameter *params;
       int nparams;
-      int needString;
     PPCODE:
       nparams = 0;
       if (virDomainGetBlkioParameters(dom, NULL, &nparams, flags) < 0)
@@ -3301,10 +3369,10 @@ set_blkio_parameters(dom, newparams, flags=0)
           _croak_error();
       }
 
-      needString = vir_typed_param_from_hv(newparams, params, nparams);
+      nparams = vir_typed_param_from_hv(newparams, params, nparams);
 
       if (virDomainSetBlkioParameters(dom, params, nparams,
-                                      needString ? flags | VIR_TYPED_PARAM_STRING_OKAY: flags) < 0)
+                                      flags) < 0)
           _croak_error();
       Safefree(params);
 
@@ -3468,7 +3536,7 @@ reboot(dom, flags=0)
 
 
 void
-pm_suspend_for_duration(dom, target, duration, flags)
+pm_suspend_for_duration(dom, target, duration, flags=0)
       virDomainPtr dom;
       unsigned int target;
       SV *duration;
@@ -3742,7 +3810,7 @@ set_block_iotune(dom, disk, newparams, flags=0)
           _croak_error();
       }
 
-      vir_typed_param_from_hv(newparams, params, nparams);
+      nparams = vir_typed_param_from_hv(newparams, params, nparams);
       if (virDomainSetBlockIoTune(dom, disk, params, nparams, flags) < 0)
           _croak_error();
 
@@ -3793,7 +3861,7 @@ set_interface_parameters(dom, intf, newparams, flags=0)
           _croak_error();
       }
 
-      vir_typed_param_from_hv(newparams, params, nparams);
+      nparams = vir_typed_param_from_hv(newparams, params, nparams);
       if (virDomainSetInterfaceParameters(dom, intf, params, nparams, flags) < 0)
           _croak_error();
 
@@ -6222,6 +6290,8 @@ BOOT:
 
       REGISTER_CONSTANT(VIR_DOMAIN_PMSUSPENDED_UNKNOWN, STATE_PMSUSPENDED_UNKNOWN);
 
+      REGISTER_CONSTANT(VIR_DOMAIN_PMSUSPENDED_DISK_UNKNOWN, STATE_PMSUSPENDED_DISK_UNKNOWN);
+
       REGISTER_CONSTANT(VIR_DOMAIN_OPEN_GRAPHICS_SKIPAUTH, OPEN_GRAPHICS_SKIPAUTH);
 
       REGISTER_CONSTANT(VIR_DOMAIN_CONSOLE_FORCE, OPEN_CONSOLE_FORCE);
@@ -6261,6 +6331,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_XML_SECURE, XML_SECURE);
       REGISTER_CONSTANT(VIR_DOMAIN_XML_INACTIVE, XML_INACTIVE);
       REGISTER_CONSTANT(VIR_DOMAIN_XML_UPDATE_CPU, XML_UPDATE_CPU);
+      REGISTER_CONSTANT(VIR_DOMAIN_XML_MIGRATABLE, XML_MIGRATABLE);
 
 
       REGISTER_CONSTANT(VIR_MEMORY_VIRTUAL, MEMORY_VIRTUAL);
@@ -6292,6 +6363,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_STOPPED, EVENT_STOPPED);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_SHUTDOWN, EVENT_SHUTDOWN);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_PMSUSPENDED, EVENT_PMSUSPENDED);
+      REGISTER_CONSTANT(VIR_DOMAIN_EVENT_PMSUSPENDED_DISK, EVENT_PMSUSPENDED_DISK);
 
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_DEFINED_ADDED, EVENT_DEFINED_ADDED);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_DEFINED_UPDATED, EVENT_DEFINED_UPDATED);
@@ -6366,6 +6438,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_JOB_COMPLETED, BLOCK_JOB_COMPLETED);
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_JOB_FAILED, BLOCK_JOB_FAILED);
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_JOB_CANCELED, BLOCK_JOB_CANCELED);
+      REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_JOB_READY, BLOCK_JOB_READY);
 
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_COMMIT_DELETE, BLOCK_COMMIT_DELETE);
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_COMMIT_SHALLOW, BLOCK_COMMIT_SHALLOW);
@@ -6381,6 +6454,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_BLOCK_JOB, EVENT_ID_BLOCK_JOB);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_DISK_CHANGE, EVENT_ID_DISK_CHANGE);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_PMSUSPEND, EVENT_ID_PMSUSPEND);
+      REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_PMSUSPEND_DISK, EVENT_ID_PMSUSPEND_DISK);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_PMWAKEUP, EVENT_ID_PMWAKEUP);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_TRAY_CHANGE, EVENT_ID_TRAY_CHANGE);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_BALLOON_CHANGE, EVENT_ID_BALLOON_CHANGE);
@@ -6741,6 +6815,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_FROM_DEVICE, FROM_DEVICE);
       REGISTER_CONSTANT(VIR_FROM_PARALLELS, FROM_PARALLELS);
       REGISTER_CONSTANT(VIR_FROM_SSH, FROM_SSH);
+      REGISTER_CONSTANT(VIR_FROM_LOCKSPACE, FROM_LOCKSPACE);
 
 
       REGISTER_CONSTANT(VIR_ERR_OK, ERR_OK);
@@ -6830,4 +6905,5 @@ BOOT:
       REGISTER_CONSTANT(VIR_ERR_AGENT_UNRESPONSIVE, ERR_AGENT_UNRESPONSIVE);
       REGISTER_CONSTANT(VIR_ERR_OPERATION_UNSUPPORTED, ERR_OPERATION_UNSUPPORTED);
       REGISTER_CONSTANT(VIR_ERR_SSH, ERR_SSH);
+      REGISTER_CONSTANT(VIR_ERR_RESOURCE_BUSY, ERR_RESOURCE_BUSY);
     }
