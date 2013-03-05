@@ -78,7 +78,7 @@ use Sys::Virt::NWFilter;
 use Sys::Virt::DomainSnapshot;
 use Sys::Virt::Stream;
 
-our $VERSION = '1.0.2';
+our $VERSION = '1.0.3';
 require XSLoader;
 XSLoader::load('Sys::Virt', $VERSION);
 
@@ -1016,6 +1016,25 @@ sub get_node_device_by_name {
     my $name = shift;
 
     return Sys::Virt::NodeDevice->_new(connection => $self, name => $name);
+}
+
+
+=item my $dev = $vmm->get_node_device_scsihost_by_wwn($wwnn, $wwpn, $flags=0)
+
+Return the node device which is a SCSI host identified by C<$wwnn> and C<$wwpn>.
+The C<$flags> parameter is unused and defaults to zero.  The returned object is
+an instance of the L<Sys::Virt::NodeDevice> class.
+
+=cut
+
+sub get_node_device_scsihost_by_wwn {
+    my $self = shift;
+    my $wwnn = shift;
+    my $wwpn = shift;
+
+    return Sys::Virt::NodeDevice->_new(connection => $self,
+				       wwnn => $wwnn,
+				       wwpn => $wwpn);
 }
 
 
