@@ -1293,23 +1293,23 @@ vir_typed_param_from_hv(HV *newparams, virTypedParameter *params, int nparams)
     unsigned int i;
     char * ptr;
     STRLEN len;
-    int ret = 0;
 
     /* We only want to set parameters which we're actually changing
      * so here we figure out which elements of 'params' we need to
      * update, and overwrite the others
      */
-    for (i = 0 ; i < nparams ; i++) {
+    for (i = 0 ; i < nparams ;) {
         if (!hv_exists(newparams, params[i].field, strlen(params[i].field))) {
             if ((nparams-i) > 1)
                 memmove(params+i, params+i+1, sizeof(*params)*(nparams-(i+1)));
+            nparams--;
             continue;
         }
 
-        ret++;
+        i++;
     }
 
-    for (i = 0 ; i < ret ; i++) {
+    for (i = 0 ; i < nparams ; i++) {
         SV **val;
 
         val = hv_fetch (newparams, params[i].field, strlen(params[i].field), 0);
@@ -1346,7 +1346,7 @@ vir_typed_param_from_hv(HV *newparams, virTypedParameter *params, int nparams)
         }
     }
 
-    return ret;
+    return nparams;
 }
 
 
@@ -3641,97 +3641,98 @@ create(dom, flags=0)
 
 
 virDomainPtr
-migrate(dom, destcon, flags=0, dname=&PL_sv_undef, uri=&PL_sv_undef, bandwidth=0)
+_migrate(dom, destcon, newparams, flags=0)
      virDomainPtr dom;
      virConnectPtr destcon;
+     HV *newparams;
      unsigned long flags;
-     SV *dname;
-     SV *uri;
-     unsigned long bandwidth;
-PREINIT:
-     const char *dnamestr = NULL;
-     const char *uristr = NULL;
-   CODE:
-     if (SvOK(dname))
-         dnamestr = SvPV_nolen(dname);
-     if (SvOK(uri))
-         uristr = SvPV_nolen(uri);
+  PREINIT:
+     virTypedParameter *params;
+     int nparams;
+    CODE:
+     nparams = 5;
+     Newx(params, nparams, virTypedParameter);
 
-     if ((RETVAL = virDomainMigrate(dom, destcon, flags, dnamestr, uristr, bandwidth)) == NULL)
+     memcpy(params[0].field, VIR_MIGRATE_PARAM_URI,
+            VIR_TYPED_PARAM_FIELD_LENGTH);
+     params[0].type = VIR_TYPED_PARAM_STRING;
+
+     memcpy(params[1].field, VIR_MIGRATE_PARAM_DEST_NAME,
+            VIR_TYPED_PARAM_FIELD_LENGTH);
+     params[1].type = VIR_TYPED_PARAM_STRING;
+
+     memcpy(params[2].field, VIR_MIGRATE_PARAM_DEST_XML,
+            VIR_TYPED_PARAM_FIELD_LENGTH);
+     params[2].type = VIR_TYPED_PARAM_STRING;
+
+     memcpy(params[3].field, VIR_MIGRATE_PARAM_GRAPHICS_URI,
+            VIR_TYPED_PARAM_FIELD_LENGTH);
+     params[3].type = VIR_TYPED_PARAM_STRING;
+
+     memcpy(params[4].field, VIR_MIGRATE_PARAM_BANDWIDTH,
+            VIR_TYPED_PARAM_FIELD_LENGTH);
+     params[4].type = VIR_TYPED_PARAM_ULLONG;
+
+
+     nparams = vir_typed_param_from_hv(newparams, params, nparams);
+
+     /* No need to support virDomainMigrate/virDomainMigrate2, since
+      * virDomainMigrate3 takes care to call the older APIs internally
+      * if it is possible todo so
+      */
+     if ((RETVAL = virDomainMigrate3(dom, destcon, params, nparams, flags)) == NULL) {
+         Safefree(params);
          _croak_error();
+     }
+     Safefree(params);
  OUTPUT:
      RETVAL
 
 
 void
-migrate_to_uri(dom, desturi, flags=0, dname=&PL_sv_undef, bandwidth=0)
+_migrate_to_uri(dom, desturi, newparams, flags=0)
      virDomainPtr dom;
      const char *desturi;
+     HV *newparams;
      unsigned long flags;
-     SV *dname;
-     unsigned long bandwidth;
-PREINIT:
-     const char *dnamestr = NULL;
+  PREINIT:
+     virTypedParameter *params;
+     int nparams;
   PPCODE:
-     if (SvOK(dname))
-         dnamestr = SvPV_nolen(dname);
+     nparams = 5;
+     Newx(params, nparams, virTypedParameter);
 
-     if (virDomainMigrateToURI(dom, desturi, flags, dnamestr, bandwidth) < 0)
+     memcpy(params[0].field, VIR_MIGRATE_PARAM_URI,
+            VIR_TYPED_PARAM_FIELD_LENGTH);
+     params[0].type = VIR_TYPED_PARAM_STRING;
+
+     memcpy(params[1].field, VIR_MIGRATE_PARAM_DEST_NAME,
+            VIR_TYPED_PARAM_FIELD_LENGTH);
+     params[1].type = VIR_TYPED_PARAM_STRING;
+
+     memcpy(params[2].field, VIR_MIGRATE_PARAM_DEST_XML,
+            VIR_TYPED_PARAM_FIELD_LENGTH);
+     params[2].type = VIR_TYPED_PARAM_STRING;
+
+     memcpy(params[3].field, VIR_MIGRATE_PARAM_GRAPHICS_URI,
+            VIR_TYPED_PARAM_FIELD_LENGTH);
+     params[3].type = VIR_TYPED_PARAM_STRING;
+
+     memcpy(params[4].field, VIR_MIGRATE_PARAM_BANDWIDTH,
+            VIR_TYPED_PARAM_FIELD_LENGTH);
+     params[4].type = VIR_TYPED_PARAM_ULLONG;
+
+     nparams = vir_typed_param_from_hv(newparams, params, nparams);
+
+     /* No need to support virDomainMigrateToURI/virDomainMigrateToURI2, since
+      * virDomainMigrate3 takes care to call the older APIs internally
+      * if it is possible todo so
+      */
+     if (virDomainMigrateToURI3(dom, desturi, params, nparams, flags) < 0) {
+         Safefree(params);
          _croak_error();
-
-
-virDomainPtr
-migrate2(dom, destcon, dxml=&PL_sv_undef, flags=0, dname=&PL_sv_undef, uri=&PL_sv_undef, bandwidth=0)
-     virDomainPtr dom;
-     virConnectPtr destcon;
-     SV *dxml;
-     unsigned long flags;
-     SV *dname;
-     SV *uri;
-     unsigned long bandwidth;
-PREINIT:
-     const char *dnamestr = NULL;
-     const char *uristr = NULL;
-     const char *dxmlstr = NULL;
-   CODE:
-     if (SvOK(dxml))
-         dxmlstr = SvPV_nolen(dxml);
-     if (SvOK(dname))
-         dnamestr = SvPV_nolen(dname);
-     if (SvOK(uri))
-         uristr = SvPV_nolen(uri);
-
-     if ((RETVAL = virDomainMigrate2(dom, destcon, dxmlstr,
-                                     flags, dnamestr, uristr, bandwidth)) == NULL)
-       _croak_error();
- OUTPUT:
-     RETVAL
-
-
-void
-migrate_to_uri2(dom, dconnuri, miguri=&PL_sv_undef, dxml=&PL_sv_undef, flags=0, dname=&PL_sv_undef, bandwidth=0)
-     virDomainPtr dom;
-     const char *dconnuri;
-     SV *miguri;
-     SV *dxml;
-     unsigned long flags;
-     SV *dname;
-     unsigned long bandwidth;
-PREINIT:
-     const char *miguristr = NULL;
-     const char *dxmlstr = NULL;
-     const char *dnamestr = NULL;
-  PPCODE:
-     if (SvOK(dxml))
-         dxmlstr = SvPV_nolen(dxml);
-     if (SvOK(miguri))
-         miguristr = SvPV_nolen(miguri);
-     if (SvOK(dname))
-         dnamestr = SvPV_nolen(dname);
-
-     if (virDomainMigrateToURI2(dom, dconnuri, miguristr, dxmlstr,
-                                flags, dnamestr, bandwidth) < 0)
-         _croak_error();
+     }
+     Safefree(params);
 
 
 void
@@ -6462,7 +6463,13 @@ BOOT:
       REGISTER_CONSTANT(VIR_MIGRATE_UNSAFE, MIGRATE_UNSAFE);
       REGISTER_CONSTANT(VIR_MIGRATE_OFFLINE, MIGRATE_OFFLINE);
       REGISTER_CONSTANT(VIR_MIGRATE_COMPRESSED, MIGRATE_COMPRESSED);
+      REGISTER_CONSTANT(VIR_MIGRATE_ABORT_ON_ERROR, MIGRATE_ABORT_ON_ERROR);
 
+      REGISTER_CONSTANT_STR(VIR_MIGRATE_PARAM_BANDWIDTH, MIGRATE_PARAM_BANDWIDTH);
+      REGISTER_CONSTANT_STR(VIR_MIGRATE_PARAM_DEST_NAME, MIGRATE_PARAM_DEST_NAME);
+      REGISTER_CONSTANT_STR(VIR_MIGRATE_PARAM_DEST_XML, MIGRATE_PARAM_DEST_XML);
+      REGISTER_CONSTANT_STR(VIR_MIGRATE_PARAM_GRAPHICS_URI, MIGRATE_PARAM_GRAPHICS_URI);
+      REGISTER_CONSTANT_STR(VIR_MIGRATE_PARAM_URI, MIGRATE_PARAM_URI);
 
       REGISTER_CONSTANT(VIR_DOMAIN_XML_SECURE, XML_SECURE);
       REGISTER_CONSTANT(VIR_DOMAIN_XML_INACTIVE, XML_INACTIVE);
@@ -6701,6 +6708,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_VCPU_LIVE, VCPU_LIVE);
       REGISTER_CONSTANT(VIR_DOMAIN_VCPU_CONFIG, VCPU_CONFIG);
       REGISTER_CONSTANT(VIR_DOMAIN_VCPU_MAXIMUM, VCPU_MAXIMUM);
+      REGISTER_CONSTANT(VIR_DOMAIN_VCPU_GUEST, VCPU_GUEST);
 
 
       REGISTER_CONSTANT(VIR_DOMAIN_SHUTDOWN_DEFAULT, SHUTDOWN_DEFAULT);
@@ -6950,6 +6958,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_CONNECT_LIST_NODE_DEVICES_CAP_STORAGE, LIST_CAP_STORAGE);
       REGISTER_CONSTANT(VIR_CONNECT_LIST_NODE_DEVICES_CAP_FC_HOST, LIST_CAP_FC_HOST);
       REGISTER_CONSTANT(VIR_CONNECT_LIST_NODE_DEVICES_CAP_VPORTS, LIST_CAP_VPORTS);
+      REGISTER_CONSTANT(VIR_CONNECT_LIST_NODE_DEVICES_CAP_SCSI_GENERIC, LIST_CAP_SCSI_GENERIC);
 
 
       stash = gv_stashpv( "Sys::Virt::StorageVol", TRUE );
@@ -7063,6 +7072,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_FROM_INITCTL, FROM_INITCTL);
       REGISTER_CONSTANT(VIR_FROM_CGROUP, FROM_CGROUP);
       REGISTER_CONSTANT(VIR_FROM_IDENTITY, FROM_IDENTITY);
+      REGISTER_CONSTANT(VIR_FROM_ACCESS, FROM_ACCESS);
 
 
       REGISTER_CONSTANT(VIR_ERR_OK, ERR_OK);
@@ -7153,4 +7163,5 @@ BOOT:
       REGISTER_CONSTANT(VIR_ERR_OPERATION_UNSUPPORTED, ERR_OPERATION_UNSUPPORTED);
       REGISTER_CONSTANT(VIR_ERR_SSH, ERR_SSH);
       REGISTER_CONSTANT(VIR_ERR_RESOURCE_BUSY, ERR_RESOURCE_BUSY);
+      REGISTER_CONSTANT(VIR_ERR_ACCESS_DENIED, ERR_ACCESS_DENIED);
     }

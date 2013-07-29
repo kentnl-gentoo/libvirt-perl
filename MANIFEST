@@ -40,6 +40,8 @@ MANIFEST			This list of files
 MANIFEST.SKIP
 META.yml
 META.yml.PL
+MYMETA.json
+MYMETA.yml
 perl-Sys-Virt.spec
 perl-Sys-Virt.spec.PL
 README
