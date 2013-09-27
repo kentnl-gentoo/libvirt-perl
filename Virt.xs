@@ -4370,12 +4370,21 @@ get_vcpu_info(dom, flags=0)
 
       maplen = VIR_CPU_MAPLEN(VIR_NODEINFO_MAXCPUS(nodeinfo));
       Newx(cpumaps, dominfo.nrVirtCpu * maplen, unsigned char);
-      if (flags && (flags & VIR_DOMAIN_AFFECT_CONFIG)) {
-          Newx(info, dominfo.nrVirtCpu, virVcpuInfo);
+      if (!flags) {
+	  Newx(info, dominfo.nrVirtCpu, virVcpuInfo);
           if ((nvCpus = virDomainGetVcpus(dom, info, dominfo.nrVirtCpu, cpumaps, maplen)) < 0) {
+              virErrorPtr err = virGetLastError();
               Safefree(info);
-              Safefree(cpumaps);
-              _croak_error();
+              info = NULL;
+              if (err && err->code == VIR_ERR_OPERATION_INVALID) {
+                  if ((nvCpus = virDomainGetVcpuPinInfo(dom, dominfo.nrVirtCpu, cpumaps, maplen, flags)) < 0) {
+                      Safefree(cpumaps);
+                      _croak_error();
+                  }
+              } else {
+                  Safefree(cpumaps);
+                  _croak_error();
+              }
           }
       } else {
           info = NULL;
@@ -4393,6 +4402,10 @@ get_vcpu_info(dom, flags=0)
               (void)hv_store(rec, "state", 5, newSViv(info[i].state), 0);
               (void)hv_store(rec, "cpuTime", 7, virt_newSVull(info[i].cpuTime), 0);
               (void)hv_store(rec, "cpu", 3, newSViv(info[i].cpu), 0);
+          } else {
+              (void)hv_store(rec, "state", 5, newSViv(0), 0);
+              (void)hv_store(rec, "cpuTime", 7, virt_newSVull(0), 0);
+              (void)hv_store(rec, "cpu", 3, newSViv(0), 0);
           }
           (void)hv_store(rec, "affinity", 8, newSVpvn((char*)cpumaps + (i *maplen), maplen), 0);
           PUSHs(newRV_noinc((SV *)rec));
@@ -5390,8 +5403,10 @@ const char *
 get_parent(dev)
       virNodeDevicePtr dev;
     CODE:
-      if (!(RETVAL = virNodeDeviceGetParent(dev)))
-          _croak_error();
+      if (!(RETVAL = virNodeDeviceGetParent(dev))) {
+          if (virGetLastError() != NULL)
+              _croak_error();
+      }
   OUTPUT:
       RETVAL
 
@@ -6460,6 +6475,7 @@ BOOT:
       REGISTER_CONSTANT_STR(VIR_NODE_MEMORY_SHARED_PAGES_VOLATILE, NODE_MEMORY_SHARED_PAGES_VOLATILE);
       REGISTER_CONSTANT_STR(VIR_NODE_MEMORY_SHARED_FULL_SCANS, NODE_MEMORY_SHARED_FULL_SCANS);
 
+      REGISTER_CONSTANT(VIR_CONNECT_BASELINE_CPU_EXPAND_FEATURES, BASELINE_CPU_EXPAND_FEATURES);
 
       stash = gv_stashpv( "Sys::Virt::Event", TRUE );
 
@@ -6766,6 +6782,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_GRAPHICS_ADDRESS_UNIX, EVENT_GRAPHICS_ADDRESS_UNIX);
 
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_DISK_CHANGE_MISSING_ON_START, EVENT_DISK_CHANGE_MISSING_ON_START);
+      REGISTER_CONSTANT(VIR_DOMAIN_EVENT_DISK_DROP_MISSING_ON_START, EVENT_DISK_DROP_MISSING_ON_START);
 
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_TRAY_CHANGE_OPEN, EVENT_TRAY_CHANGE_OPEN);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_TRAY_CHANGE_CLOSE, EVENT_TRAY_CHANGE_CLOSE);

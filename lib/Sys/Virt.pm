@@ -78,7 +78,7 @@ use Sys::Virt::NWFilter;
 use Sys::Virt::DomainSnapshot;
 use Sys::Virt::Stream;
 
-our $VERSION = '1.1.1';
+our $VERSION = '1.1.2';
 require XSLoader;
 XSLoader::load('Sys::Virt', $VERSION);
 
@@ -1548,7 +1548,16 @@ Remove the previously registered close callback.
 Given an array ref whose elements are XML documents describing host CPUs,
 compute the baseline CPU model that is operable across all hosts. The
 XML for the baseline CPU model is returned. The optional C<$flags>
-parameter is currently unused and defaults to 0.
+parameter can take one of
+
+=over 4
+
+=item Sys::Virt::BASELINE_CPU_EXPAND_FEATURES
+
+Expand the CPU definition to list all feature flags, even those
+implied by the model name.
+
+=back
 
 =item my $info = $con->get_node_security_model()
 

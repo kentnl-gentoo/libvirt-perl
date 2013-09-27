@@ -8,6 +8,7 @@ examples/emulator-pin.pl
 examples/events.pl
 examples/hv-stat.pl
 examples/node-cpu.pl
+examples/node-devlist.pl
 examples/node-ksm.pl
 examples/open-console.pl
 examples/save-restore.pl
