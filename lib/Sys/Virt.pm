@@ -78,7 +78,7 @@ use Sys::Virt::NWFilter;
 use Sys::Virt::DomainSnapshot;
 use Sys::Virt::Stream;
 
-our $VERSION = '1.1.2';
+our $VERSION = '1.1.3';
 require XSLoader;
 XSLoader::load('Sys::Virt', $VERSION);
 
@@ -1558,6 +1558,14 @@ Expand the CPU definition to list all feature flags, even those
 implied by the model name.
 
 =back
+
+=item @names = $con->get_cpu_model_names($arch, $flags=0)
+
+Get a list of valid CPU models names for the architecture
+given by C<$arch>. The C<$arch> value should be one of the
+architectures listed in the capabilities XML document.
+The C<$flags> parameter is currently unused and defaults
+to 0.
 
 =item my $info = $con->get_node_security_model()
 
