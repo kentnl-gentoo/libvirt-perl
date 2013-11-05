@@ -78,7 +78,7 @@ use Sys::Virt::NWFilter;
 use Sys::Virt::DomainSnapshot;
 use Sys::Virt::Stream;
 
-our $VERSION = '1.1.3';
+our $VERSION = '1.1.4';
 require XSLoader;
 XSLoader::load('Sys::Virt', $VERSION);
 
@@ -790,7 +790,7 @@ sub list_secrets {
     my $self = shift;
 
     my $nuuids = $self->num_of_secrets();
-    my @uuids = $self->list_secrets($nuuids);
+    my @uuids = $self->list_secret_uuids($nuuids);
 
     my @secrets;
     foreach my $uuid (@uuids) {
