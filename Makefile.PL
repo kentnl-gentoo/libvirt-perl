@@ -3,7 +3,7 @@ use ExtUtils::MakeMaker;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
 
-my $libvirtver = "1.2.0";
+my $libvirtver = "1.2.1";
 my $stat = system "pkg-config --atleast-version=$libvirtver libvirt";
 die "cannot run pkg-config to check libvirt version" if $stat == -1;
 die "libvirt >= $libvirtver is required\n" unless $stat == 0;
@@ -20,7 +20,7 @@ my $gccflags = "-W -Waddress -Wall -Warray-bounds -Wattributes \\
  -Wformat-extra-args -Wformat-security -Wformat-y2k \\
  -Wformat-zero-length -Wformat=2 -Wfree-nonheap-object \\
  -Wignored-qualifiers -Wimplicit -Wimplicit-function-declaration \\
- -Wimplicit-int -Winit-self -Winline -Wint-to-pointer-cast \\
+ -Wimplicit-int -Winit-self -Wint-to-pointer-cast \\
  -Winvalid-memory-model -Winvalid-pch -Wjump-misses-init \\
  -Wlogical-op -Wmain -Wmaybe-uninitialized -Wmissing-braces \\
  -Wmissing-declarations -Wmissing-field-initializers \\

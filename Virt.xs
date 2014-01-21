@@ -1,7 +1,7 @@
 /* -*- c -*-
  *
- * Copyright (C) 2006 Red Hat
- * Copyright (C) 2006-2007 Daniel P. Berrange
+ * Copyright (C) 2006-2014 Red Hat
+ * Copyright (C) 2006-2014 Daniel P. Berrange
  *
  * This program is free software; You can redistribute it and/or modify
  * it under either:
@@ -781,8 +781,92 @@ _domain_event_device_removed_callback(virConnectPtr con,
 }
 
 
+static int
+_network_event_lifecycle_callback(virConnectPtr con,
+				  virNetworkPtr net,
+				  int event,
+				  int detail,
+				  void *opaque)
+{
+    AV *data = opaque;
+    SV **self;
+    SV **cb;
+    SV *netref;
+    dSP;
+
+    self = av_fetch(data, 0, 0);
+    cb = av_fetch(data, 1, 0);
+
+    SvREFCNT_inc(*self);
+
+    ENTER;
+    SAVETMPS;
+
+    PUSHMARK(SP);
+    XPUSHs(*self);
+    netref = sv_newmortal();
+    sv_setref_pv(netref, "Sys::Virt::Network", (void*)net);
+    virNetworkRef(net);
+    XPUSHs(netref);
+    XPUSHs(sv_2mortal(newSViv(event)));
+    XPUSHs(sv_2mortal(newSViv(detail)));
+    PUTBACK;
+
+    call_sv(*cb, G_DISCARD);
+
+    FREETMPS;
+    LEAVE;
+
+    return 0;
+}
+
+
+static int
+_network_event_generic_callback(virConnectPtr con,
+				virNetworkPtr net,
+				void *opaque)
+{
+    AV *data = opaque;
+    SV **self;
+    SV **cb;
+    SV *netref;
+    dSP;
+
+    self = av_fetch(data, 0, 0);
+    cb = av_fetch(data, 1, 0);
+
+    SvREFCNT_inc(*self);
+
+    ENTER;
+    SAVETMPS;
+
+    PUSHMARK(SP);
+    XPUSHs(*self);
+    netref = sv_newmortal();
+    sv_setref_pv(netref, "Sys::Virt::Network", (void*)net);
+    virNetworkRef(net);
+    XPUSHs(netref);
+    PUTBACK;
+
+    call_sv(*cb, G_DISCARD);
+
+    FREETMPS;
+    LEAVE;
+
+    return 0;
+}
+
+
 static void
 _domain_event_free(void *opaque)
+{
+  SV *sv = opaque;
+  SvREFCNT_dec(sv);
+}
+
+
+static void
+_network_event_free(void *opaque)
 {
   SV *sv = opaque;
   SvREFCNT_dec(sv);
@@ -1925,7 +2009,7 @@ PREINIT:
           PUSHs(sv_2mortal(newSVpv(names[i], 0)));
           free(names[i]);
       }
-      Safefree(names);
+      free(names);
 
 
 
@@ -2607,6 +2691,53 @@ domain_event_deregister_any(con, callbackID)
       int callbackID;
  PPCODE:
       virConnectDomainEventDeregisterAny(con, callbackID);
+
+
+int
+network_event_register_any(conref, netref, eventID, cb)
+      SV* conref;
+      SV* netref;
+      int eventID;
+      SV* cb;
+PREINIT:
+      AV *opaque;
+      virConnectPtr con;
+      virNetworkPtr net;
+      virConnectNetworkEventGenericCallback callback;
+    CODE:
+      con = (virConnectPtr)SvIV((SV*)SvRV(conref));
+      if (SvROK(netref)) {
+          net = (virNetworkPtr)SvIV((SV*)SvRV(netref));
+      } else {
+          net = NULL;
+      }
+
+      switch (eventID) {
+      case VIR_NETWORK_EVENT_ID_LIFECYCLE:
+          callback = VIR_NETWORK_EVENT_CALLBACK(_network_event_lifecycle_callback);
+          break;
+      default:
+          callback = VIR_NETWORK_EVENT_CALLBACK(_network_event_generic_callback);
+          break;
+      }
+
+      opaque = newAV();
+      SvREFCNT_inc(cb);
+      SvREFCNT_inc(conref);
+      av_push(opaque, conref);
+      av_push(opaque, cb);
+      if ((RETVAL = virConnectNetworkEventRegisterAny(con, net, eventID, callback, opaque, _network_event_free)) < 0)
+          _croak_error();
+OUTPUT:
+      RETVAL
+
+
+void
+network_event_deregister_any(con, callbackID)
+      virConnectPtr con;
+      int callbackID;
+ PPCODE:
+      virConnectNetworkEventDeregisterAny(con, callbackID);
 
 
 void
@@ -3789,28 +3920,28 @@ _migrate(dom, destcon, newparams, flags=0)
      nparams = 6;
      Newx(params, nparams, virTypedParameter);
 
-     memcpy(params[0].field, VIR_MIGRATE_PARAM_URI,
-            VIR_TYPED_PARAM_FIELD_LENGTH);
+     strncpy(params[0].field, VIR_MIGRATE_PARAM_URI,
+             VIR_TYPED_PARAM_FIELD_LENGTH);
      params[0].type = VIR_TYPED_PARAM_STRING;
 
-     memcpy(params[1].field, VIR_MIGRATE_PARAM_DEST_NAME,
-            VIR_TYPED_PARAM_FIELD_LENGTH);
+     strncpy(params[1].field, VIR_MIGRATE_PARAM_DEST_NAME,
+             VIR_TYPED_PARAM_FIELD_LENGTH);
      params[1].type = VIR_TYPED_PARAM_STRING;
 
-     memcpy(params[2].field, VIR_MIGRATE_PARAM_DEST_XML,
-            VIR_TYPED_PARAM_FIELD_LENGTH);
+     strncpy(params[2].field, VIR_MIGRATE_PARAM_DEST_XML,
+             VIR_TYPED_PARAM_FIELD_LENGTH);
      params[2].type = VIR_TYPED_PARAM_STRING;
 
-     memcpy(params[3].field, VIR_MIGRATE_PARAM_GRAPHICS_URI,
-            VIR_TYPED_PARAM_FIELD_LENGTH);
+     strncpy(params[3].field, VIR_MIGRATE_PARAM_GRAPHICS_URI,
+             VIR_TYPED_PARAM_FIELD_LENGTH);
      params[3].type = VIR_TYPED_PARAM_STRING;
 
-     memcpy(params[4].field, VIR_MIGRATE_PARAM_BANDWIDTH,
-            VIR_TYPED_PARAM_FIELD_LENGTH);
+     strncpy(params[4].field, VIR_MIGRATE_PARAM_BANDWIDTH,
+             VIR_TYPED_PARAM_FIELD_LENGTH);
      params[4].type = VIR_TYPED_PARAM_ULLONG;
 
-     memcpy(params[5].field, VIR_MIGRATE_PARAM_LISTEN_ADDRESS,
-            VIR_TYPED_PARAM_FIELD_LENGTH);
+     strncpy(params[5].field, VIR_MIGRATE_PARAM_LISTEN_ADDRESS,
+             VIR_TYPED_PARAM_FIELD_LENGTH);
      params[5].type = VIR_TYPED_PARAM_STRING;
 
 
@@ -3842,28 +3973,28 @@ _migrate_to_uri(dom, desturi, newparams, flags=0)
      nparams = 5;
      Newx(params, nparams, virTypedParameter);
 
-     memcpy(params[0].field, VIR_MIGRATE_PARAM_URI,
-            VIR_TYPED_PARAM_FIELD_LENGTH);
+     strncpy(params[0].field, VIR_MIGRATE_PARAM_URI,
+             VIR_TYPED_PARAM_FIELD_LENGTH);
      params[0].type = VIR_TYPED_PARAM_STRING;
 
-     memcpy(params[1].field, VIR_MIGRATE_PARAM_DEST_NAME,
-            VIR_TYPED_PARAM_FIELD_LENGTH);
+     strncpy(params[1].field, VIR_MIGRATE_PARAM_DEST_NAME,
+             VIR_TYPED_PARAM_FIELD_LENGTH);
      params[1].type = VIR_TYPED_PARAM_STRING;
 
-     memcpy(params[2].field, VIR_MIGRATE_PARAM_DEST_XML,
-            VIR_TYPED_PARAM_FIELD_LENGTH);
+     strncpy(params[2].field, VIR_MIGRATE_PARAM_DEST_XML,
+             VIR_TYPED_PARAM_FIELD_LENGTH);
      params[2].type = VIR_TYPED_PARAM_STRING;
 
-     memcpy(params[3].field, VIR_MIGRATE_PARAM_GRAPHICS_URI,
-            VIR_TYPED_PARAM_FIELD_LENGTH);
+     strncpy(params[3].field, VIR_MIGRATE_PARAM_GRAPHICS_URI,
+             VIR_TYPED_PARAM_FIELD_LENGTH);
      params[3].type = VIR_TYPED_PARAM_STRING;
 
-     memcpy(params[4].field, VIR_MIGRATE_PARAM_BANDWIDTH,
-            VIR_TYPED_PARAM_FIELD_LENGTH);
+     strncpy(params[4].field, VIR_MIGRATE_PARAM_BANDWIDTH,
+             VIR_TYPED_PARAM_FIELD_LENGTH);
      params[4].type = VIR_TYPED_PARAM_ULLONG;
 
-     memcpy(params[5].field, VIR_MIGRATE_PARAM_LISTEN_ADDRESS,
-            VIR_TYPED_PARAM_FIELD_LENGTH);
+     strncpy(params[5].field, VIR_MIGRATE_PARAM_LISTEN_ADDRESS,
+             VIR_TYPED_PARAM_FIELD_LENGTH);
      params[5].type = VIR_TYPED_PARAM_STRING;
 
      nparams = vir_typed_param_from_hv(newparams, params, nparams);
@@ -7072,6 +7203,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_CONNECT_LIST_STORAGE_POOLS_MPATH, LIST_MPATH);
       REGISTER_CONSTANT(VIR_CONNECT_LIST_STORAGE_POOLS_RBD, LIST_RBD);
       REGISTER_CONSTANT(VIR_CONNECT_LIST_STORAGE_POOLS_SHEEPDOG, LIST_SHEEPDOG);
+      REGISTER_CONSTANT(VIR_CONNECT_LIST_STORAGE_POOLS_GLUSTER, LIST_GLUSTER);
 
       stash = gv_stashpv( "Sys::Virt::Network", TRUE );
       REGISTER_CONSTANT(VIR_NETWORK_XML_INACTIVE, XML_INACTIVE);
@@ -7106,6 +7238,14 @@ BOOT:
       REGISTER_CONSTANT(VIR_CONNECT_LIST_NETWORKS_NO_AUTOSTART, LIST_NO_AUTOSTART);
       REGISTER_CONSTANT(VIR_CONNECT_LIST_NETWORKS_PERSISTENT, LIST_PERSISTENT);
       REGISTER_CONSTANT(VIR_CONNECT_LIST_NETWORKS_TRANSIENT, LIST_TRANSIENT);
+
+      REGISTER_CONSTANT(VIR_NETWORK_EVENT_ID_LIFECYCLE, EVENT_ID_LIFECYCLE);
+
+      REGISTER_CONSTANT(VIR_NETWORK_EVENT_DEFINED, EVENT_DEFINED);
+      REGISTER_CONSTANT(VIR_NETWORK_EVENT_UNDEFINED, EVENT_UNDEFINED);
+      REGISTER_CONSTANT(VIR_NETWORK_EVENT_STARTED, EVENT_STARTED);
+      REGISTER_CONSTANT(VIR_NETWORK_EVENT_STOPPED, EVENT_STOPPED);
+
 
       stash = gv_stashpv( "Sys::Virt::Interface", TRUE );
       REGISTER_CONSTANT(VIR_INTERFACE_XML_INACTIVE, XML_INACTIVE);
