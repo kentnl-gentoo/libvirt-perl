@@ -78,7 +78,7 @@ use Sys::Virt::NWFilter;
 use Sys::Virt::DomainSnapshot;
 use Sys::Virt::Stream;
 
-our $VERSION = '1.2.1';
+our $VERSION = '1.2.2';
 require XSLoader;
 XSLoader::load('Sys::Virt', $VERSION);
 
@@ -1835,6 +1835,10 @@ Time spent executing kernel code
 =item Sys::Virt::NODE_CPU_STATS_USER
 
 Time spent executing user code
+
+=item Sys::Virt::NODE_CPU_STATS_INTR
+
+Time spent processing interrupts
 
 =item Sys::Virt::NODE_CPU_STATS_UTILIZATION
 
