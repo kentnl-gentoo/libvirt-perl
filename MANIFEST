@@ -6,6 +6,7 @@ examples/dump-info.pl
 examples/dump-xml.pl
 examples/emulator-pin.pl
 examples/events.pl
+examples/fs-freeze.pl
 examples/hv-stat.pl
 examples/node-cpu.pl
 examples/node-devlist.pl

@@ -3161,6 +3161,37 @@ get_info(dom)
   OUTPUT:
       RETVAL
 
+AV *
+get_time(dom, flags=0)
+      virDomainPtr dom;
+      unsigned int flags;
+  PREINIT:
+      long long secs;
+      unsigned int nsecs;
+    CODE:
+      if (virDomainGetTime(dom, &secs, &nsecs, flags) < 0)
+          _croak_error();
+
+      RETVAL = (AV *)sv_2mortal((SV*)newAV());
+      (void)av_push(RETVAL, virt_newSVull(secs));
+      (void)av_push(RETVAL, newSViv(nsecs));
+  OUTPUT:
+      RETVAL
+
+
+void
+set_time(dom, secssv, nsecs, flags=0)
+      virDomainPtr dom;
+      SV *secssv;
+      unsigned int nsecs;
+      unsigned int flags;
+  PREINIT:
+      long long secs;
+  PPCODE:
+      secs = virt_SvIVll(secssv);
+
+      if (virDomainSetTime(dom, secs, nsecs, flags) < 0)
+	_croak_error();
 
 HV *
 get_control_info(dom, flags=0)
@@ -4738,6 +4769,67 @@ fs_trim(dom, mountPoint, minimumsv, flags=0)
       minimum = virt_SvIVull(minimumsv);
       if (virDomainFSTrim(dom, mountPoint, minimum, flags) < 0)
           _croak_error();
+
+
+void
+fs_freeze(dom, mountPointsSV, flags=0)
+      virDomainPtr dom;
+      SV *mountPointsSV;
+      unsigned int flags;
+PREINIT:
+      AV *mountPointsAV;
+      const char **mountPoints;
+      unsigned int nMountPoints;
+      unsigned int i;
+PPCODE:
+      mountPointsAV = (AV*)SvRV(mountPointsSV);
+      nMountPoints = av_len(mountPointsAV) + 1;
+      if (nMountPoints) {
+          Newx(mountPoints, nMountPoints, const char *);
+          for (i = 0 ; i < nMountPoints ; i++) {
+              SV **mountPoint = av_fetch(mountPointsAV, i, 0);
+              mountPoints[i] = SvPV_nolen(*mountPoint);
+          }
+      } else {
+	  mountPoints = NULL;
+      }
+
+      if (virDomainFSFreeze(dom, mountPoints, nMountPoints, flags) < 0) {
+          Safefree(mountPoints);
+          _croak_error();
+      }
+
+      Safefree(mountPoints);
+
+
+void
+fs_thaw(dom, mountPointsSV, flags=0)
+      virDomainPtr dom;
+      SV *mountPointsSV;
+      unsigned int flags;
+PREINIT:
+      AV *mountPointsAV;
+      const char **mountPoints;
+      unsigned int nMountPoints;
+      unsigned int i;
+PPCODE:
+      mountPointsAV = (AV*)SvRV(mountPointsSV);
+      nMountPoints = av_len(mountPointsAV) + 1;
+      if (nMountPoints) {
+          Newx(mountPoints, nMountPoints, const char *);
+          for (i = 0 ; i < nMountPoints ; i++) {
+              SV **mountPoint = av_fetch(mountPointsAV, i, 0);
+              mountPoints[i] = SvPV_nolen(*mountPoint);
+          }
+      } else {
+	  mountPoints = NULL;
+      }
+      if (virDomainFSThaw(dom, mountPoints, nMountPoints, flags) < 0) {
+          Safefree(mountPoints);
+          _croak_error();
+      }
+
+      Safefree(mountPoints);
 
 
 void
@@ -7035,6 +7127,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_SHUTDOWN_GUEST_AGENT, SHUTDOWN_GUEST_AGENT);
       REGISTER_CONSTANT(VIR_DOMAIN_SHUTDOWN_INITCTL, SHUTDOWN_INITCTL);
       REGISTER_CONSTANT(VIR_DOMAIN_SHUTDOWN_SIGNAL, SHUTDOWN_SIGNAL);
+      REGISTER_CONSTANT(VIR_DOMAIN_SHUTDOWN_PARAVIRT, SHUTDOWN_PARAVIRT);
 
 
       REGISTER_CONSTANT(VIR_DOMAIN_REBOOT_DEFAULT, REBOOT_DEFAULT);
@@ -7042,6 +7135,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_REBOOT_GUEST_AGENT, REBOOT_GUEST_AGENT);
       REGISTER_CONSTANT(VIR_DOMAIN_REBOOT_INITCTL, REBOOT_INITCTL);
       REGISTER_CONSTANT(VIR_DOMAIN_REBOOT_SIGNAL, REBOOT_SIGNAL);
+      REGISTER_CONSTANT(VIR_DOMAIN_REBOOT_PARAVIRT, REBOOT_PARAVIRT);
 
       REGISTER_CONSTANT(VIR_DOMAIN_PROCESS_SIGNAL_NOP, PROCESS_SIGNAL_NOP);
       REGISTER_CONSTANT(VIR_DOMAIN_PROCESS_SIGNAL_HUP, PROCESS_SIGNAL_HUP);
@@ -7157,6 +7251,8 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_CORE_DUMP_FORMAT_KDUMP_LZO, CORE_DUMP_FORMAT_KDUMP_LZO);
       REGISTER_CONSTANT(VIR_DOMAIN_CORE_DUMP_FORMAT_KDUMP_SNAPPY, CORE_DUMP_FORMAT_KDUMP_SNAPPY);
       REGISTER_CONSTANT(VIR_DOMAIN_CORE_DUMP_FORMAT_KDUMP_ZLIB, CORE_DUMP_FORMAT_KDUMP_ZLIB);
+
+      REGISTER_CONSTANT(VIR_DOMAIN_TIME_SYNC, TIME_SYNC);
 
       stash = gv_stashpv( "Sys::Virt::DomainSnapshot", TRUE );
       REGISTER_CONSTANT(VIR_DOMAIN_SNAPSHOT_DELETE_CHILDREN, DELETE_CHILDREN);

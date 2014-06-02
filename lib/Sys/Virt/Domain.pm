@@ -473,6 +473,25 @@ the current state.
 
 =back
 
+=item my ($secs, $nsecs) = $dom->get_time($flags=0);
+
+Get the current time of the guest, in seconds and nanoseconds.
+The C<$flags> parameter is currently unused and defaults to
+zero.
+
+=item $dom->set_time($secs, $nsecs, $flags=0);
+
+Set the current time of the guest, in seconds and nanoseconds.
+The C<$flags> parameter accepts one of
+
+=over 4
+
+=item C<Sys::Virt::Domain::TIME_SYNC>
+
+Re-sync domain time from domain's RTC.
+
+=back
+
 =item my @errs = $dom->get_disk_errors($flags=0)
 
 Returns a list of all disk errors that have occurred on
@@ -1486,6 +1505,20 @@ sub create_snapshot {
 Issue an FS_TRIM command to the device at C<$mountPoint>
 to remove chunks of unused space that are at least
 C<$minimum> bytes in length. C<$flags> is currently
+unused and defaults to zero.
+
+=item $dom->fs_freeze(\@mountPoints, $flags=0);
+
+Freeze all the filesystems associated with the C<@mountPoints>
+array reference. If <@mountPoints> is an empty list, then all
+filesystems will be frozen. C<$flags> is currently
+unused and defaults to zero.
+
+=item $dom->fs_thaw(\@mountPoints, $flags=0);
+
+Thaw all the filesystems associated with the C<@mountPoints>
+array reference. If <@mountPoints> is an empty list, then all
+filesystems will be thawed. C<$flags> is currently
 unused and defaults to zero.
 
 =item $dom->send_process_signal($pid, $signum, $flags=0);
@@ -2799,6 +2832,10 @@ Shutdown by talking to initctl (containers only)
 
 Shutdown by sending SIGTERM to the init process
 
+=item Sys::Virt::Domain::SHUTDOWN_PARAVIRT
+
+Shutdown by issuing a paravirt power control command
+
 =back
 
 =head2 REBOOT CONSTANTS
@@ -2827,6 +2864,10 @@ Reboot by talking to initctl (containers only)
 =item Sys::Virt::Domain::REBOOT_SIGNAL
 
 Reboot by sending SIGHUP to the init process
+
+=item Sys::Virt::Domain::REBOOT_PARAVIRT
+
+Reboot by issuing a paravirt power control command
 
 =back
 
