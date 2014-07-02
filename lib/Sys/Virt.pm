@@ -78,7 +78,7 @@ use Sys::Virt::NWFilter;
 use Sys::Virt::DomainSnapshot;
 use Sys::Virt::Stream;
 
-our $VERSION = '1.2.5';
+our $VERSION = '1.2.6';
 require XSLoader;
 XSLoader::load('Sys::Virt', $VERSION);
 
@@ -1615,7 +1615,17 @@ Returns an XML document describing the hypervisor capabilities
 Checks whether the CPU definition in C<$xml> is compatible with the
 current hypervisor connection. This can be used to determine whether
 it is safe to migrate a guest to this host. The returned result is
-one of the constants listed later
+one of the constants listed later The optional C<$flags> parameter
+can take one of the following constants
+
+=over 4
+
+=item Sys::Virt::COMPARE_CPU_FAIL_INCOMPATIBLE
+
+Raise a fatal error if the CPUs are not compatible, instead of
+just returning a special error code.
+
+=back
 
 =item $mem = $con->get_node_free_memory();
 
@@ -1624,6 +1634,19 @@ Returns the current free memory on the host
 =item @mem = $con->get_node_cells_free_memory($start, $end);
 
 Returns the free memory on each NUMA cell between C<$start> and C<$end>.
+
+=item @pages = $con->get_node_free_pages(\@pagesizes, $start, $end);
+
+Returns information about the number of pages free on each NUMA cell
+between C<$start> and C<$end> inclusive. The C<@pagesizes> parameter
+should be an arrayref specifying which pages sizes information should
+be returned for. Information about supported page sizes is available
+in the capabilities XML. The returned array has an element for each
+NUMA cell requested. The elements are hash references with two keys,
+'cell' specifies the NUMA cell number and 'pages' specifies the
+free page information for that cell. The 'pages' value is another
+hash reference where the keys are the page sizes and the values
+are the free count for that size.
 
 =back
 
@@ -1867,6 +1890,22 @@ The amount of free memory
 =item Sys::Virt::NODE_MEMORY_STATS_TOTAL
 
 The total amount of memory
+
+=back
+
+=head2 IP address constants
+
+The following constants are used to interpret IP address types
+
+=over 4
+
+=item Sys::Virt::IP_ADDR_TYPE_IPV4
+
+An IPv4 address type
+
+=item Sys::Virt::IP_ADDR_TYPE_IPV6
+
+An IPv6 address type
 
 =back
 

@@ -2,6 +2,7 @@ AUTHORS
 Changes
 examples/auth.pl
 examples/devices.pl
+examples/dhcp-leases.pl
 examples/dump-info.pl
 examples/dump-xml.pl
 examples/emulator-pin.pl

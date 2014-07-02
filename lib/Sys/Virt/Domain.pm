@@ -2471,7 +2471,13 @@ Errors from the virtualization control channel
 
 =item Sys::Virt::Domain::EVENT_ID_BLOCK_JOB
 
-Completion status of asynchronous block jobs
+Completion status of asynchronous block jobs,
+identified by source file name.
+
+=item Sys::Virt::Domain::EVENT_ID_BLOCK_JOB_2
+
+Completion status of asynchronous block jobs,
+identified by target device name.
 
 =item Sys::Virt::Domain::EVENT_ID_DISK_CHANGE
 
@@ -2652,6 +2658,10 @@ The block copy job type
 
 The block commit job type
 
+=item Sys::Virt::Domain::BLOCK_JOB_TYPE_ACTIVE_COMMIT
+
+The block active commit job type
+
 =back
 
 =head2 DOMAIN BLOCK JOB COMPLETION CONSTANTS
@@ -2732,6 +2742,10 @@ Delete any files that are invalid after commit
 =item Sys::Virt::Domain::BLOCK_COMMIT_SHALLOW
 
 NULL base means next backing file, not whole chain
+
+=item Sys::Virt::Domain::BLOCK_COMMIT_ACTIVE
+
+Allow two phase commit when top is active layer
 
 =back
 

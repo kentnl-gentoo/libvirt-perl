@@ -1765,10 +1765,11 @@ get_node_cells_free_memory(con, start, end)
       int end;
 PREINIT:
       unsigned long long *mem;
-      int i, num;
+      int i, num, ncells;
  PPCODE:
-      Newx(mem, end-start, unsigned long long);
-      if ((num = virNodeGetCellsFreeMemory(con, mem, start, end)) < 0) {
+      ncells = (end - start) + 1;
+      Newx(mem, ncells, unsigned long long);
+      if ((num = virNodeGetCellsFreeMemory(con, mem, start, ncells)) < 0) {
           Safefree(mem);
           _croak_error();
       }
@@ -1778,6 +1779,57 @@ PREINIT:
 	PUSHs(sv_2mortal(val));
       }
       Safefree(mem);
+
+
+void
+get_node_free_pages(con, pagesizes, start, end, flags=0)
+     virConnectPtr con;
+     SV *pagesizes;
+     int start;
+     int end;
+     unsigned int flags;
+PREINIT:
+     AV *pagesizeslist;
+     unsigned int *pages;
+     unsigned int npages;
+     unsigned long long *counts;
+     int ncells;
+     int i, j;
+ PPCODE:
+     ncells = (end - start) + 1;
+     pagesizeslist = (AV *)SvRV(pagesizes);
+     npages = av_len(pagesizeslist) + 1;
+     Newx(pages, npages, unsigned int);
+     for (i = 0; i < npages; i++) {
+         SV **pagesize = av_fetch(pagesizeslist, i, 0);
+	 pages[i] = SvIV(*pagesize);
+     }
+
+     Newx(counts, npages * ncells, unsigned long long);
+
+     if (virNodeGetFreePages(con, npages, pages, start,
+			     ncells, counts, flags) < 0) {
+         Safefree(counts);
+         Safefree(pages);
+         _croak_error();
+     }
+     EXTEND(SP, ncells);
+     for (i = 0; i < ncells; i++) {
+         HV *rec = newHV();
+	 HV *prec = newHV();
+	 (void)hv_store(rec, "cell", 4, newSViv(start + i), 0);
+	 (void)hv_store(rec, "pages", 5, newRV_noinc((SV *)prec), 0);
+
+	 for (j = 0; j < npages; j++) {
+	     (void)hv_store_ent(prec,
+				newSViv(pages[j]),
+				virt_newSVull(counts[(i * npages) + j]),
+				0);
+	 }
+	 PUSHs(newRV_noinc((SV *)rec));
+     }
+     Safefree(counts);
+     Safefree(pages);
 
 
 HV *
@@ -2648,6 +2700,9 @@ PREINIT:
           callback = VIR_DOMAIN_EVENT_CALLBACK(_domain_event_generic_callback);
           break;
       case VIR_DOMAIN_EVENT_ID_BLOCK_JOB:
+          callback = VIR_DOMAIN_EVENT_CALLBACK(_domain_event_block_job_callback);
+          break;
+      case VIR_DOMAIN_EVENT_ID_BLOCK_JOB_2:
           callback = VIR_DOMAIN_EVENT_CALLBACK(_domain_event_block_job_callback);
           break;
       case VIR_DOMAIN_EVENT_ID_DISK_CHANGE:
@@ -5076,6 +5131,44 @@ get_autostart(net)
 
 
 void
+get_dhcp_leases(net, macsv=&PL_sv_undef, flags=0)
+      virNetworkPtr net;
+      SV *macsv;
+      unsigned int flags;
+PREINIT:
+      virNetworkDHCPLeasePtr *leases = NULL;
+      int nleases;
+      const char *mac = NULL;
+      int i;
+  PPCODE:
+      if (SvOK(macsv))
+	  mac = SvPV_nolen(macsv);
+
+      if ((nleases = virNetworkGetDHCPLeases(net, mac, &leases, flags)) < 0)
+	  _croak_error();
+
+      EXTEND(SP, nleases);
+      for (i = 0 ; i < nleases ; i++) {
+	  HV *hv = newHV();
+
+	  (void)hv_store(hv, "iface", 5, newSVpv(leases[i]->iface, 0), 0);
+	  (void)hv_store(hv, "expirytime", 10, virt_newSVll(leases[i]->expirytime), 0);
+	  (void)hv_store(hv, "type", 4, newSViv(leases[i]->type), 0);
+	  (void)hv_store(hv, "mac", 3, newSVpv(leases[i]->mac, 0), 0);
+	  (void)hv_store(hv, "iaid", 4, newSVpv(leases[i]->iaid, 0), 0);
+	  (void)hv_store(hv, "ipaddr", 6, newSVpv(leases[i]->ipaddr, 0), 0);
+	  (void)hv_store(hv, "prefix", 6, newSViv(leases[i]->prefix), 0);
+	  (void)hv_store(hv, "hostname", 8, newSVpv(leases[i]->hostname, 0), 0);
+	  (void)hv_store(hv, "clientid", 8, newSVpv(leases[i]->clientid, 0), 0);
+
+	  virNetworkDHCPLeaseFree(leases[i]);
+
+	  PUSHs(newRV_noinc((SV*)hv));
+      }
+      free(leases);
+
+
+void
 destroy(net_rv)
       SV *net_rv;
  PREINIT:
@@ -6743,6 +6836,11 @@ BOOT:
 
       REGISTER_CONSTANT(VIR_CONNECT_BASELINE_CPU_EXPAND_FEATURES, BASELINE_CPU_EXPAND_FEATURES);
 
+      REGISTER_CONSTANT(VIR_CONNECT_COMPARE_CPU_FAIL_INCOMPATIBLE, COMPARE_CPU_FAIL_INCOMPATIBLE);
+
+      REGISTER_CONSTANT(VIR_IP_ADDR_TYPE_IPV4, IP_ADDR_TYPE_IPV4);
+      REGISTER_CONSTANT(VIR_IP_ADDR_TYPE_IPV6, IP_ADDR_TYPE_IPV6);
+
       stash = gv_stashpv( "Sys::Virt::Event", TRUE );
 
       REGISTER_CONSTANT(VIR_EVENT_HANDLE_READABLE, HANDLE_READABLE);
@@ -7004,6 +7102,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_JOB_TYPE_PULL, BLOCK_JOB_TYPE_PULL);
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_JOB_TYPE_COPY, BLOCK_JOB_TYPE_COPY);
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_JOB_TYPE_COMMIT, BLOCK_JOB_TYPE_COMMIT);
+      REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_JOB_TYPE_ACTIVE_COMMIT, BLOCK_JOB_TYPE_ACTIVE_COMMIT);
 
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_JOB_COMPLETED, BLOCK_JOB_COMPLETED);
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_JOB_FAILED, BLOCK_JOB_FAILED);
@@ -7012,6 +7111,7 @@ BOOT:
 
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_COMMIT_DELETE, BLOCK_COMMIT_DELETE);
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_COMMIT_SHALLOW, BLOCK_COMMIT_SHALLOW);
+      REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_COMMIT_ACTIVE, BLOCK_COMMIT_ACTIVE);
 
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_LIFECYCLE, EVENT_ID_LIFECYCLE);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_REBOOT, EVENT_ID_REBOOT);
@@ -7022,6 +7122,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_IO_ERROR_REASON, EVENT_ID_IO_ERROR_REASON);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_CONTROL_ERROR, EVENT_ID_CONTROL_ERROR);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_BLOCK_JOB, EVENT_ID_BLOCK_JOB);
+      REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_BLOCK_JOB_2, EVENT_ID_BLOCK_JOB_2);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_DISK_CHANGE, EVENT_ID_DISK_CHANGE);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_PMSUSPEND, EVENT_ID_PMSUSPEND);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_PMSUSPEND_DISK, EVENT_ID_PMSUSPEND_DISK);
@@ -7599,4 +7700,5 @@ BOOT:
       REGISTER_CONSTANT(VIR_ERR_ACCESS_DENIED, ERR_ACCESS_DENIED);
       REGISTER_CONSTANT(VIR_ERR_DBUS_SERVICE, ERR_DBUS_SERVICE);
       REGISTER_CONSTANT(VIR_ERR_STORAGE_VOL_EXIST, ERR_STORAGE_VOL_EXIST);
+      REGISTER_CONSTANT(VIR_ERR_CPU_INCOMPATIBLE, ERR_CPU_INCOMPATIBLE);
     }
