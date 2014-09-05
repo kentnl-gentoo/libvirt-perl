@@ -1160,6 +1160,16 @@ anoymous socket pair. The C<$flags> argument should be one of
 the constants listed at the end of this document, and defaults
 to 0.
 
+=item $fd = $dom->open_graphics_fd($idx, $flags)
+
+Open the graphics console for a guest, identified by C<$idx>,
+counting from 0. The C<$flags> argument should be one of the
+constants listed at the end of this document, and defaults
+to 0. The return value will be a file descriptor connected
+to the console which must be closed when no longer needed.
+This method is preferred over C<open_graphics> since it will
+work correctly under sVirt mandatory access control policies.
+
 =item my $mimetype = $dom->screenshot($st, $screen, $flags)
 
 Capture a screenshot of the virtual machine's monitor. The C<$screen>
@@ -1405,6 +1415,29 @@ maximum I/O rate to allow in MB/s.
 Switch the backing path associated with C<$path> to instead
 use C<$base>. The C<$bandwidth> parameter specifies the
 maximum I/O rate to allow in MB/s.
+
+=item $dom->block_copy($path, $destxml, $params, $flags=0)
+
+Copy contents of a disk image <$path> into the target volume
+described by C<$destxml> which follows the schema of the
+<disk> element in the domain XML. The C<$params> parameter
+is a hash of optional parameters to control the process
+
+=over 4
+
+=item Sys::Virt::Domain::BLOCK_COPY_BANDWIDTH
+
+The maximum bandwidth in bytes per second.
+
+=item Sys::Virt::Domain::BLOCK_COPY_GRANULARITY
+
+The granularity in bytes of the copy process
+
+=item Sys::Virt::Domain::BLOCK_COPY_BUF_SIZE
+
+The maximum amount of data in flight in bytes.
+
+=back
 
 =item $dom->block_commit($path, $base, $top, $bandwith, $flags=0)
 
@@ -2711,6 +2744,26 @@ Make destination file raw
 
 Start a copy job
 
+=item Sys::Virt::Domain::BLOCK_REBASE_RELATIVE
+
+Keep backing chain referenced using relative names
+
+=back
+
+=head2 DOMAIN BLOCK COPY CONSTANTS
+
+The following constants are useful when copying block devices
+
+=over 4
+
+=item Sys::Virt::Domain::BLOCK_COPY_SHALLOW
+
+Limit copy to top of source backing chain
+
+=item Sys::Virt::Domain::BLOCK_COPY_REUSE_EXT
+
+Reuse existing external file for copy
+
 =back
 
 =head2 DOMAIN BLOCK JOB ABORT CONSTANTS
@@ -2746,6 +2799,10 @@ NULL base means next backing file, not whole chain
 =item Sys::Virt::Domain::BLOCK_COMMIT_ACTIVE
 
 Allow two phase commit when top is active layer
+
+=item Sys::Virt::Domain::BLOCK_COMMIT_RELATIVE
+
+Keep backing chain referenced using relative names
 
 =back
 
@@ -3128,6 +3185,64 @@ The duration of the time period for scheduling the emulator
 =item Sys::Virt::SCHEDULER_EMULATOR_QUOTA
 
 The quota for the emulator in one schedular time period
+
+=back
+
+=head2 DOMAIN STATS FLAG CONSTANTS
+
+The following constants are used as flags when requesting
+bulk domain stats from C<Sys::Virt::get_all_domain_stats>.
+
+=over 4
+
+=item Sys::Virt::GET_ALL_STATS_ACTIVE
+
+Include stats for active domains
+
+=item Sys::Virt::GET_ALL_STATS_INACTIVE
+
+Include stats for inactive domains
+
+=item Sys::Virt::GET_ALL_STATS_OTHER
+
+Include stats for other domains
+
+=item Sys::Virt::GET_ALL_STATS_PAUSED
+
+Include stats for paused domains
+
+=item Sys::Virt::GET_ALL_STATS_PERSISTENT
+
+Include stats for persistent domains
+
+=item Sys::Virt::GET_ALL_STATS_RUNNING
+
+Include stats for running domains
+
+=item Sys::Virt::GET_ALL_STATS_SHUTOFF
+
+Include stats for shutoff domains
+
+=item Sys::Virt::GET_ALL_STATS_TRANSIENT
+
+Include stats for transient domains
+
+=item Sys::Virt::GET_ALL_STATS_ENFORCE_STATS
+
+Require that all requested stats fields are returned
+
+=back
+
+=head2 DOMAIN STATS FIELD CONSTANTS
+
+The following constants are used to control which fields
+are returned for stats queries.
+
+=over
+
+=item Sys::Virt::Domain::STATS_STATE
+
+General lifecycle state
 
 =back
 

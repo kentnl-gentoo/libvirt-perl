@@ -1997,6 +1997,41 @@ PREINIT:
   OUTPUT:
       RETVAL
 
+SV *
+get_domain_capabilities(con, emulatorsv, archsv, machinesv, virttypesv, flags=0)
+      virConnectPtr con;
+      SV *emulatorsv;
+      SV *archsv;
+      SV *machinesv;
+      SV *virttypesv;
+      unsigned int flags;
+PREINIT:
+      char *emulator = NULL;
+      char *arch = NULL;
+      char *machine = NULL;
+      char *virttype = NULL;
+      char *xml;
+   CODE:
+      if (SvOK(emulatorsv))
+	  emulator = SvPV_nolen(emulatorsv);
+      if (SvOK(archsv))
+	  arch = SvPV_nolen(archsv);
+      if (SvOK(machinesv))
+	  machine = SvPV_nolen(machinesv);
+      if (SvOK(virttypesv))
+	  virttype = SvPV_nolen(virttypesv);
+
+      if (!(xml = virConnectGetDomainCapabilities(con,
+						  emulator, arch,
+						  machine, virttype,
+						  flags)))
+          _croak_error();
+
+      RETVAL = newSVpv(xml, 0);
+      free(xml);
+  OUTPUT:
+      RETVAL
+
 
 SV *
 compare_cpu(con, xml, flags=0)
@@ -2591,6 +2626,66 @@ list_nwfilter_names(con, maxnames)
           free(names[i]);
       }
       Safefree(names);
+
+
+void get_all_domain_stats(con, stats, doms_sv=&PL_sv_undef, flags=0)
+      virConnectPtr con;
+      unsigned int stats;
+      SV *doms_sv;
+      unsigned int flags;
+ PREINIT:
+      AV *doms_av;
+      int ndoms;
+      int nstats;
+      int i;
+      virDomainPtr *doms = NULL;
+      virDomainStatsRecordPtr *statsrec = NULL;
+   PPCODE:
+
+      if (SvOK(doms_sv)) {
+	  doms_av = (AV*)SvRV(doms_sv);
+	  ndoms = av_len(doms_av) + 1;
+	  fprintf(stderr, "Len %d\n", ndoms);
+      } else {
+          ndoms = 0;
+      }
+
+      if (ndoms) {
+	  Newx(doms, ndoms + 1, virDomainPtr);
+
+	  for (i = 0 ; i < ndoms ; i++) {
+	      SV **dom = av_fetch(doms_av, i, 0);
+	      doms[i] = (virDomainPtr)SvIV((SV*)SvRV(*dom));
+	  }
+	  doms[ndoms] = NULL;
+
+	  if ((nstats = virDomainListGetStats(doms, stats, &statsrec, flags)) < 0) {
+	    Safefree(doms);
+	    _croak_error();
+	  }
+      } else {
+          doms = NULL;
+
+	  if ((nstats = virConnectGetAllDomainStats(con, stats, &statsrec, flags)) < 0) {
+	    Safefree(doms);
+	    _croak_error();
+	  }
+      }
+
+      EXTEND(SP, nstats);
+      for (i = 0 ; i < nstats ; i++) {
+	HV *rec = newHV();
+	SV *dom = sv_newmortal();
+	HV *data = vir_typed_param_to_hv(statsrec[i]->params,
+					 statsrec[i]->nparams);
+	sv_setref_pv(dom, "Sys::Virt::Domain", statsrec[i]->dom);
+	virDomainRef(statsrec[i]->dom);
+	hv_store(rec, "dom", 3, SvREFCNT_inc(dom), 0);
+	hv_store(rec, "data", 4, newRV((SV*)data), 0);
+	PUSHs(newRV_noinc((SV*)rec));
+      }
+      virDomainStatsRecordListFree(statsrec);
+      Safefree(doms);
 
 
 SV *
@@ -3324,6 +3419,18 @@ open_graphics(dom, idx, fd, flags=0)
           _croak_error();
 
 
+int
+open_graphics_fd(dom, idx, flags=0)
+      virDomainPtr dom;
+      unsigned int idx;
+      unsigned int flags;
+  CODE:
+      if ((RETVAL = virDomainOpenGraphicsFD(dom, idx, flags)) < 0)
+          _croak_error();
+OUTPUT:
+      RETVAL
+
+
 SV *
 screenshot(dom, st, screen, flags=0)
       virDomainPtr dom;
@@ -3481,6 +3588,42 @@ block_rebase(dom, path, base, bandwidth, flags=0)
     PPCODE:
       if (virDomainBlockRebase(dom, path, base, bandwidth, flags) < 0)
           _croak_error();
+
+
+void
+block_copy(dom, path, destxml, newparams, flags=0)
+      virDomainPtr dom;
+      const char *path;
+      const char *destxml;
+      HV *newparams;
+      unsigned long flags;
+  PREINIT:
+      virTypedParameter *params;
+      int nparams;
+  PPCODE:
+      nparams = 3;
+      Newx(params, nparams, virTypedParameter);
+
+      strncpy(params[0].field, VIR_DOMAIN_BLOCK_COPY_BANDWIDTH,
+              VIR_TYPED_PARAM_FIELD_LENGTH);
+      params[0].type = VIR_TYPED_PARAM_ULLONG;
+
+      strncpy(params[1].field, VIR_DOMAIN_BLOCK_COPY_GRANULARITY,
+              VIR_TYPED_PARAM_FIELD_LENGTH);
+      params[1].type = VIR_TYPED_PARAM_UINT;
+
+      strncpy(params[2].field, VIR_DOMAIN_BLOCK_COPY_BUF_SIZE,
+              VIR_TYPED_PARAM_FIELD_LENGTH);
+      params[2].type = VIR_TYPED_PARAM_UINT;
+
+      nparams = vir_typed_param_from_hv(newparams, params, nparams);
+
+      if (virDomainBlockCopy(dom, path, destxml, params, nparams, flags) < 0) {
+          Safefree(params);
+          _croak_error();
+      }
+
+      Safefree(params);
 
 
 void
@@ -6997,6 +7140,17 @@ BOOT:
       REGISTER_CONSTANT(VIR_KEYCODE_SET_WIN32, KEYCODE_SET_WIN32);
       REGISTER_CONSTANT(VIR_KEYCODE_SET_RFB, KEYCODE_SET_RFB);
 
+      REGISTER_CONSTANT(VIR_DOMAIN_STATS_STATE, STATS_STATE);
+
+      REGISTER_CONSTANT(VIR_CONNECT_GET_ALL_DOMAINS_STATS_ACTIVE, GET_ALL_STATS_ACTIVE);
+      REGISTER_CONSTANT(VIR_CONNECT_GET_ALL_DOMAINS_STATS_INACTIVE, GET_ALL_STATS_INACTIVE);
+      REGISTER_CONSTANT(VIR_CONNECT_GET_ALL_DOMAINS_STATS_OTHER, GET_ALL_STATS_OTHER);
+      REGISTER_CONSTANT(VIR_CONNECT_GET_ALL_DOMAINS_STATS_PAUSED, GET_ALL_STATS_PAUSED);
+      REGISTER_CONSTANT(VIR_CONNECT_GET_ALL_DOMAINS_STATS_PERSISTENT, GET_ALL_STATS_PERSISTENT);
+      REGISTER_CONSTANT(VIR_CONNECT_GET_ALL_DOMAINS_STATS_RUNNING, GET_ALL_STATS_RUNNING);
+      REGISTER_CONSTANT(VIR_CONNECT_GET_ALL_DOMAINS_STATS_SHUTOFF, GET_ALL_STATS_SHUTOFF);
+      REGISTER_CONSTANT(VIR_CONNECT_GET_ALL_DOMAINS_STATS_TRANSIENT, GET_ALL_STATS_TRANSIENT);
+      REGISTER_CONSTANT(VIR_CONNECT_GET_ALL_DOMAINS_STATS_ENFORCE_STATS, GET_ALL_STATS_ENFORCE_STATS);
 
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_DEFINED, EVENT_DEFINED);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_UNDEFINED, EVENT_UNDEFINED);
@@ -7112,6 +7266,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_COMMIT_DELETE, BLOCK_COMMIT_DELETE);
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_COMMIT_SHALLOW, BLOCK_COMMIT_SHALLOW);
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_COMMIT_ACTIVE, BLOCK_COMMIT_ACTIVE);
+      REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_COMMIT_RELATIVE, BLOCK_COMMIT_RELATIVE);
 
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_LIFECYCLE, EVENT_ID_LIFECYCLE);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_REBOOT, EVENT_ID_REBOOT);
@@ -7330,6 +7485,15 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_REBASE_REUSE_EXT, BLOCK_REBASE_REUSE_EXT);
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_REBASE_COPY_RAW, BLOCK_REBASE_COPY_RAW);
       REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_REBASE_COPY, BLOCK_REBASE_COPY);
+      REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_REBASE_RELATIVE, BLOCK_REBASE_RELATIVE);
+
+      REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_COPY_BANDWIDTH, BLOCK_COPY_BANDWIDTH);
+      REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_COPY_GRANULARITY, BLOCK_COPY_GRANULARITY);
+      REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_COPY_BUF_SIZE, BLOCK_COPY_BUF_SIZE);
+
+      REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_COPY_REUSE_EXT, BLOCK_COPY_REUSE_EXT);
+      REGISTER_CONSTANT(VIR_DOMAIN_BLOCK_COPY_SHALLOW, BLOCK_COPY_SHALLOW);
+
 
       REGISTER_CONSTANT(VIR_CONNECT_LIST_DOMAINS_ACTIVE, LIST_ACTIVE);
       REGISTER_CONSTANT(VIR_CONNECT_LIST_DOMAINS_AUTOSTART, LIST_AUTOSTART);
@@ -7424,6 +7588,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_CONNECT_LIST_STORAGE_POOLS_RBD, LIST_RBD);
       REGISTER_CONSTANT(VIR_CONNECT_LIST_STORAGE_POOLS_SHEEPDOG, LIST_SHEEPDOG);
       REGISTER_CONSTANT(VIR_CONNECT_LIST_STORAGE_POOLS_GLUSTER, LIST_GLUSTER);
+      REGISTER_CONSTANT(VIR_CONNECT_LIST_STORAGE_POOLS_ZFS, LIST_ZFS);
 
       stash = gv_stashpv( "Sys::Virt::Network", TRUE );
       REGISTER_CONSTANT(VIR_NETWORK_XML_INACTIVE, XML_INACTIVE);

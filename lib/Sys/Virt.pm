@@ -78,7 +78,7 @@ use Sys::Virt::NWFilter;
 use Sys::Virt::DomainSnapshot;
 use Sys::Virt::Stream;
 
-our $VERSION = '1.2.6';
+our $VERSION = '1.2.8';
 require XSLoader;
 XSLoader::load('Sys::Virt', $VERSION);
 
@@ -1161,6 +1161,22 @@ C<$flags> parameter is optional, and if omitted defaults to zero. The
 returned scalar is an XML document describing the discovered storage
 pool sources.
 
+=item my @stats = $vmm->get_all_domain_stats($stats, \@doms=undef, $flags=0);
+
+Get an list of all statistics for domains known to the hypervisor.
+The C<$stats> parameter controls which data fields to return and
+should be a combination of the DOMAIN STATS FIELD CONSTANTS.
+
+The optional C<@doms> parameter is a list of Sys::Virt::Domain objects
+to return stats for. If this is undefined, then all domains will be
+returned. The C<$flags> method can be used to filter the list of
+returned domains.
+
+The return data for the method is a list, one element for each domain.
+The element will be a hash with two keys, C<dom> pointing to an instance
+of C<Sys::Virt::Domain> and C<data> pointing to another hash reference
+containing the actual statistics.
+
 =item $vmm->interface_change_begin($flags)
 
 Begin a transaction for changing the configuration of one or more
@@ -1609,6 +1625,16 @@ specifying the 'domain of interpretation' for security labels.
 =item my $xml = $con->get_capabilities();
 
 Returns an XML document describing the hypervisor capabilities
+
+=item my $xml = $con->get_domain_capabilities($emulator, $arch, $machine, $virttype, flags=0);
+
+Returns an XML document describing the capabilities of the
+requested guest configuration. Either C<$emulator> or C<$arch>
+must be a valid string referring to an emulator binary or an
+architecture name respectively. The C<$machine> parameter is
+an optional name of a guest machine, and C<$virttype> is an
+optional name of the virtualization type. C<$flags> is unused
+and defaults to zero.
 
 =item my $result = $con->compare_cpu($xml, $flags=0);
 
