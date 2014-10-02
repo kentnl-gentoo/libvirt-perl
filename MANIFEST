@@ -3,12 +3,14 @@ Changes
 examples/auth.pl
 examples/devices.pl
 examples/dhcp-leases.pl
+examples/dom-stats.pl
 examples/dump-info.pl
 examples/dump-xml.pl
 examples/emulator-pin.pl
 examples/events.pl
 examples/fs-freeze.pl
 examples/hv-stat.pl
+examples/node-alloc.pl
 examples/node-cpu.pl
 examples/node-devlist.pl
 examples/node-info.pl

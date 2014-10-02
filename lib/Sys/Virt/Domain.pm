@@ -1281,7 +1281,7 @@ The expected amount of file remaining to be processed by the job, in bytes.
 
 =back
 
-=item my ($type, $stats) = $dom->get_job_stats()
+=item my ($type, $stats) = $dom->get_job_stats($flags=0)
 
 Returns an array summarising the execution state of the
 background job. The C<$type> value is one of the JOB TYPE
@@ -1295,6 +1295,17 @@ following constants.
 
 The type of job, one of the JOB TYPE constants listed later in
 this document.
+
+The C<$flags> parameter defaults to zero and can take one of
+the following constants.
+
+=over 4
+
+=item Sys::Virt::Domain::JOB_STATS_COMPLETED
+
+Return the stats of the most recently completed job.
+
+=back
 
 =item Sys::Virt::Domain::JOB_TIME_ELAPSED
 
@@ -1342,6 +1353,10 @@ The number of pages transferred without any compression
 
 The number of bytes transferred without any compression
 
+=item Sys::Virt::Domain::JOB_MEMORY_BPS
+
+The bytes per second transferred
+
 =item Sys::Virt::Domain::JOB_DISK_TOTAL
 
 The total amount of file expected to be processed by the job, in bytes.
@@ -1353,6 +1368,10 @@ The current amount of file processed by the job, in bytes.
 =item Sys::Virt::Domain::JOB_DISK_REMAINING
 
 The expected amount of file remaining to be processed by the job, in bytes.
+
+=item Sys::Virt::Domain::JOB_DISK_BPS
+
+The bytes per second transferred
 
 =item Sys::Virt::Domain::JOB_COMPRESSION_CACHE
 
@@ -1381,6 +1400,10 @@ non-compressed page.
 The number of milliseconds of downtime expected during
 migration switchover.
 
+=item Sys::Virt::Domain::JOB_SETUP_TIME
+
+The number of milliseconds of time doing setup of the job
+
 =back
 
 =item $dom->abort_job()
@@ -1391,13 +1414,32 @@ Aborts the currently executing job
 
 Returns a hash reference summarising the execution state of
 the block job. The C<$path> parameter should be the fully
-qualified path of the block device being changed.
+qualified path of the block device being changed. Valid
+C<$flags> include:
+
+=over 4
+
+=item Sys::Virt::Domain::BLOCK_JOB_INFO_BANDWIDTH_BYTES
+
+Treat bandwidth value as bytes instead of MiB.
+
+=back
 
 =item $dom->set_block_job_speed($path, $bandwidth, $flags=0)
 
 Change the maximum I/O bandwidth used by the block job that
 is currently executing for C<$path>. The C<$bandwidth> argument
-is specified in MB/s
+is specified in MB/s.  The C<$flags> parameter
+can take the bitwise union of the values:
+
+=over 4
+
+=item Sys::Virt::Domain::BLOCK_JOB_SPEED_BANDWIDTH_BYTES
+
+The C<$bandwidth> parameter value is measured in bytes/s
+instead of MB/s.
+
+=back
 
 =item $dom->abort_block_job($path, $flags=0)
 
@@ -1408,13 +1450,33 @@ associated with C<$path>
 
 Merge the backing files associated with C<$path> into the
 top level file. The C<$bandwidth> parameter specifies the
-maximum I/O rate to allow in MB/s.
+maximum I/O rate to allow in MB/s. The C<$flags> parameter
+can take the bitwise union of the values:
+
+=over 4
+
+=item Sys::Virt::Domain::BLOCK_PULL_BANDWIDTH_BYTES
+
+The C<$bandwidth> parameter value is measured in bytes/s
+instead of MB/s.
+
+=back
 
 =item $dom->block_rebase($path, $base, $bandwith, $flags=0)
 
 Switch the backing path associated with C<$path> to instead
 use C<$base>. The C<$bandwidth> parameter specifies the
-maximum I/O rate to allow in MB/s.
+maximum I/O rate to allow in MB/s. The C<$flags> parameter
+can take the bitwise union of the values:
+
+=over 4
+
+=item Sys::Virt::Domain::BLOCK_REBASE_BANDWIDTH_BYTES
+
+The C<$bandwidth> parameter value is measured in bytes/s
+instead of MB/s.
+
+=back
 
 =item $dom->block_copy($path, $destxml, $params, $flags=0)
 
@@ -1444,7 +1506,17 @@ The maximum amount of data in flight in bytes.
 Commit changes there were made to the temporary top level file C<$top>.
 Takes all the differences between C<$top> and C<$base> and merge them
 into C<$base>. The C<$bandwidth> parameter specifies the
-maximum I/O rate to allow in MB/s.
+maximum I/O rate to allow in MB/s.  The C<$flags> parameter
+can take the bitwise union of the values:
+
+=over 4
+
+=item Sys::Virt::Domain::BLOCK_COMMIT_BANDWIDTH_BYTES
+
+The C<$bandwidth> parameter value is measured in bytes
+instead of MB/s.
+
+=back
 
 =item $count = $dom->num_of_snapshots()
 
@@ -1974,6 +2046,10 @@ Abort if an I/O error occurrs on the disk
 Force convergance of the migration operation by
 throttling guest runtime
 
+=item Sys::Virt::Domain::MIGRATE_RDMA_PIN_ALL
+
+Pin memory for RDMA transfer
+
 =back
 
 =head2 UNDEFINE CONSTANTS
@@ -1991,6 +2067,11 @@ domain
 =item Sys::Virt::Domain::UNDEFINE_SNAPSHOTS_METADATA
 
 Also remove any snapshot metadata when undefining the virtual
+domain.
+
+=item Sys::Virt::Domain::UNDEFINE_NVRAM
+
+Also remove any NVRAM state file when undefining the virtual
 domain.
 
 =back
@@ -2540,6 +2621,13 @@ Balloon target changes
 
 Asynchronous guest device removal
 
+=item Sys::Virt::Domain::EVENT_ID_TUNABLE
+
+Changes of any domain tuning parameters. The callback
+will be provided with a hash listing all changed parameters.
+The later DOMAIN TUNABLE constants can be useful when accessing
+the hash keys
+
 =back
 
 =head2 IO ERROR EVENT CONSTANTS
@@ -2743,6 +2831,10 @@ Make destination file raw
 =item Sys::Virt::Domain::BLOCK_REBASE_COPY
 
 Start a copy job
+
+=item Sys::Virt::Domain::BLOCK_REBASE_COPY_DEV
+
+Treat destination as a block device instead of file
 
 =item Sys::Virt::Domain::BLOCK_REBASE_RELATIVE
 
@@ -3240,9 +3332,29 @@ are returned for stats queries.
 
 =over
 
+=item Sys::Virt::Domain::STATS_BALLOON
+
+Balloon statistics
+
+=item Sys::Virt::Domain::STATS_BLOCK
+
+Block device info
+
+=item Sys::Virt::Domain::STATS_CPU_TOTAL
+
+CPU usage info
+
+=item Sys::Virt::Domain::STATS_INTERFACE
+
+Network interface info
+
 =item Sys::Virt::Domain::STATS_STATE
 
 General lifecycle state
+
+=item Sys::Virt::Domain::STATS_VCPU
+
+Virtual CPU info
 
 =back
 
@@ -3513,6 +3625,71 @@ SIGRT31
 =item Sys::Virt::Domain::PROCESS_SIGNAL_RT32
 
 SIGRT32
+
+=back
+
+=head2 DOMAIN TUNABLE CONSTANTS
+
+The following constants are useful when accessing domain
+tuning parameters in APIs and events
+
+=over 4
+
+=item Sys::Virt::Domain::TUNABLE_CPU_CPU_SHARES
+
+Proportional CPU weight
+
+=item Sys::Virt::Domain::TUNABLE_CPU_EMULATORPIN
+
+Emulator thread CPU pinning mask
+
+=item Sys::Virt::Domain::TUNABLE_CPU_EMULATOR_PERIOD
+
+Emulator thread CPU period
+
+=item Sys::Virt::Domain::TUNABLE_CPU_EMULATOR_QUOTA
+
+Emulator thread CPU quota
+
+=item Sys::Virt::Domain::TUNABLE_CPU_VCPUPIN
+
+VCPU thread pinning mask
+
+=item Sys::Virt::Domain::TUNABLE_CPU_VCPU_PERIOD
+
+VCPU thread period
+
+=item Sys::Virt::Domain::TUNABLE_CPU_VCPU_QUOTA
+
+VCPU thread quota
+
+=item Sys::Virt::Domain::TUNABLE_BLKDEV_DISK
+
+The name of guest disks
+
+=item Sys::Virt::Domain::TUNABLE_BLKDEV_READ_BYTES_SEC
+
+Read throughput in bytes per sec
+
+=item Sys::Virt::Domain::TUNABLE_BLKDEV_READ_IOPS_SEC
+
+Read throughput in I/O operations per sec
+
+=item Sys::Virt::Domain::TUNABLE_BLKDEV_TOTAL_BYTES_SEC
+
+Total throughput in bytes per sec
+
+=item Sys::Virt::Domain::TUNABLE_BLKDEV_TOTAL_IOPS_SEC
+
+Total throughput in I/O operations per sec
+
+=item Sys::Virt::Domain::TUNABLE_BLKDEV_WRITE_BYTES_SEC
+
+Write throughput in bytes per sec
+
+=item Sys::Virt::Domain::TUNABLE_BLKDEV_WRITE_IOPS_SEC
+
+Write throughput in I/O operations per sec
 
 =back
 
