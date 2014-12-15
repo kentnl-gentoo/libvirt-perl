@@ -473,11 +473,13 @@ the current state.
 
 =back
 
-=item my ($secs, $nsecs) = $dom->get_time($flags=0);
+=item my $time = $dom->get_time($flags=0);
 
 Get the current time of the guest, in seconds and nanoseconds.
 The C<$flags> parameter is currently unused and defaults to
-zero.
+zero. The return value is an array ref with two elements,
+the first contains the time in seconds, the second contains
+the remaining nanoseconds.
 
 =item $dom->set_time($secs, $nsecs, $flags=0);
 
@@ -1626,6 +1628,35 @@ array reference. If <@mountPoints> is an empty list, then all
 filesystems will be thawed. C<$flags> is currently
 unused and defaults to zero.
 
+=item @fslist = $dom->get_fs_info($flags=0);
+
+Obtain a list of all guest filesystems. The returned list will
+contain one element for each filesystem, whose value will be
+a hash reference with the following keys
+
+=over 4
+
+=item name
+
+The name of the guest device that is mounted
+
+=item fstype
+
+The filesystem type (eg 'ext4', 'fat', 'ntfs', etc)
+
+=item mountpoint
+
+The location in the filesystem tree of the mount
+
+=item devalias
+
+An array reference containing list of device aliases
+associated with the guest device. The device aliases
+correspond to disk target names in the guest XML
+configuration
+
+=back
+
 =item $dom->send_process_signal($pid, $signum, $flags=0);
 
 Send the process C<$pid> the signal C<$signum>. The
@@ -2204,6 +2235,34 @@ The I/O operations read per second.
 
 The I/O operations written per second.
 
+=item Sys::Virt::Domain::BLOCK_IOTUNE_TOTAL_BYTES_SEC_MAX
+
+The maximum total bytes processed per second.
+
+=item Sys::Virt::Domain::BLOCK_IOTUNE_READ_BYTES_SEC_MAX
+
+The maximum bytes read per second.
+
+=item Sys::Virt::Domain::BLOCK_IOTUNE_WRITE_BYTES_SEC_MAX
+
+The maximum bytes written per second.
+
+=item Sys::Virt::Domain::BLOCK_IOTUNE_TOTAL_IOPS_SEC_MAX
+
+The maximum total I/O operations processed per second.
+
+=item Sys::Virt::Domain::BLOCK_IOTUNE_READ_IOPS_SEC_MAX
+
+The maximum I/O operations read per second.
+
+=item Sys::Virt::Domain::BLOCK_IOTUNE_WRITE_IOPS_SEC_MAX
+
+The maximum I/O operations written per second.
+
+=item Sys::Virt::Domain::BLOCK_IOTUNE_SIZE_IOPS_SEC
+
+The maximum I/O operations per second
+
 =back
 
 =head2 SCHEDULER CONSTANTS
@@ -2627,6 +2686,42 @@ Changes of any domain tuning parameters. The callback
 will be provided with a hash listing all changed parameters.
 The later DOMAIN TUNABLE constants can be useful when accessing
 the hash keys
+
+=item Sys::Virt::Domain::EVENT_ID_AGENT_LIFECYCLE
+
+Domain guest agent lifecycle events. The C<state> parameter
+to the callback will match one of the constants
+
+=over 4
+
+=item Sys::Virt::Domain::EVENT_AGENT_LIFECYCLE_STATE_CONNECTED
+
+The agent is now connected
+
+=item Sys::Virt::Domain::EVENT_AGENT_LIFECYCLE_STATE_DISCONNECTED
+
+The agent is now disconnected
+
+=back
+
+The second parameter, C<reason>, matches one of the following
+constants
+
+=over 4
+
+=item Sys::Virt::Domain::EVENT_AGENT_LIFECYCLE_REASON_UNKNOWN
+
+The reason is unknown
+
+=item Sys::Virt::Domain::EVENT_AGENT_LIFECYCLE_REASON_DOMAIN_STARTED
+
+The domain was initially booted
+
+=item Sys::Virt::Domain::EVENT_AGENT_LIFECYCLE_REASON_CHANNEL
+
+The channel on a running guest changed state
+
+=back
 
 =back
 
@@ -3287,39 +3382,39 @@ bulk domain stats from C<Sys::Virt::get_all_domain_stats>.
 
 =over 4
 
-=item Sys::Virt::GET_ALL_STATS_ACTIVE
+=item Sys::Virt::Domain::GET_ALL_STATS_ACTIVE
 
 Include stats for active domains
 
-=item Sys::Virt::GET_ALL_STATS_INACTIVE
+=item Sys::Virt::Domain::GET_ALL_STATS_INACTIVE
 
 Include stats for inactive domains
 
-=item Sys::Virt::GET_ALL_STATS_OTHER
+=item Sys::Virt::Domain::GET_ALL_STATS_OTHER
 
 Include stats for other domains
 
-=item Sys::Virt::GET_ALL_STATS_PAUSED
+=item Sys::Virt::Domain::GET_ALL_STATS_PAUSED
 
 Include stats for paused domains
 
-=item Sys::Virt::GET_ALL_STATS_PERSISTENT
+=item Sys::Virt::Domain::GET_ALL_STATS_PERSISTENT
 
 Include stats for persistent domains
 
-=item Sys::Virt::GET_ALL_STATS_RUNNING
+=item Sys::Virt::Domain::GET_ALL_STATS_RUNNING
 
 Include stats for running domains
 
-=item Sys::Virt::GET_ALL_STATS_SHUTOFF
+=item Sys::Virt::Domain::GET_ALL_STATS_SHUTOFF
 
 Include stats for shutoff domains
 
-=item Sys::Virt::GET_ALL_STATS_TRANSIENT
+=item Sys::Virt::Domain::GET_ALL_STATS_TRANSIENT
 
 Include stats for transient domains
 
-=item Sys::Virt::GET_ALL_STATS_ENFORCE_STATS
+=item Sys::Virt::Domain::GET_ALL_STATS_ENFORCE_STATS
 
 Require that all requested stats fields are returned
 
@@ -3690,6 +3785,34 @@ Write throughput in bytes per sec
 =item Sys::Virt::Domain::TUNABLE_BLKDEV_WRITE_IOPS_SEC
 
 Write throughput in I/O operations per sec
+
+=item Sys::Virt::Domain::TUNABLE_BLKDEV_READ_BYTES_SEC_MAX
+
+Maximum read throughput in bytes per sec
+
+=item Sys::Virt::Domain::TUNABLE_BLKDEV_READ_IOPS_SEC_MAX
+
+Maximum read throughput in I/O operations per sec
+
+=item Sys::Virt::Domain::TUNABLE_BLKDEV_TOTAL_BYTES_SEC_MAX
+
+Maximum total throughput in bytes per sec
+
+=item Sys::Virt::Domain::TUNABLE_BLKDEV_TOTAL_IOPS_SEC_MAX
+
+Maximum total throughput in I/O operations per sec
+
+=item Sys::Virt::Domain::TUNABLE_BLKDEV_WRITE_BYTES_SEC_MAX
+
+Maximum write throughput in bytes per sec
+
+=item Sys::Virt::Domain::TUNABLE_BLKDEV_WRITE_IOPS_SEC_MAX
+
+Maximum write throughput in I/O operations per sec
+
+=item Sys::Virt::Domain::TUNABLE_BLKDEV_SIZE_IOPS_SEC
+
+The maximum I/O operations per second
 
 =back
 

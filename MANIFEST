@@ -3,6 +3,7 @@ Changes
 examples/auth.pl
 examples/devices.pl
 examples/dhcp-leases.pl
+examples/dom-fsinfo.pl
 examples/dom-stats.pl
 examples/dump-info.pl
 examples/dump-xml.pl

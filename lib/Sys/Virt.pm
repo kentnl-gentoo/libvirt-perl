@@ -78,7 +78,7 @@ use Sys::Virt::NWFilter;
 use Sys::Virt::DomainSnapshot;
 use Sys::Virt::Stream;
 
-our $VERSION = '1.2.9';
+our $VERSION = '1.2.11';
 require XSLoader;
 XSLoader::load('Sys::Virt', $VERSION);
 
@@ -1857,6 +1857,10 @@ How many pages changing too fast to be placed in a tree.
 =item Sys::Virt::NODE_MEMORY_SHARED_SLEEP_MILLISECS
 
 How many milliseconds the shared memory service should sleep before next scan.
+
+=item Sys::Virt::NODE_MEMORY_SHARED_MERGE_ACROSS_NODES
+
+Whether pages can be merged across NUMA nodes
 
 =back
 

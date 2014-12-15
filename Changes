@@ -1,5 +1,16 @@
 Revision history for perl module Sys::Virt
 
+1.2.11 2014-12-15
+
+ - Add virDomainGetFSInfo API binding
+ - Add missed VIR_NODE_MEMORY_SHARED_MERGE_ACROSS_NODES constant
+ - Add new VIR_DOMAIN_TUNABLE_BLKDEV* constants
+ - Add new VIR_DOMAIN_BLOCK_IOTUNE* constants
+ - Add support for VIR_CONNECT_DOMAIN_EVENT_ID_AGENT_LIFECYCLE
+   event callbacks & constants
+ - Fix docs for Sys::Virt::Domain::get_time method
+ - Demo agent lifecycle events in example program
+
 1.2.9 2014-10-02
 
  - Add VIR_DOMAIN_*_BANDWIDTH_BYTES constants
