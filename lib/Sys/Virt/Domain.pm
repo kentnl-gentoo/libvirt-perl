@@ -62,7 +62,7 @@ sub _new {
 	}
     } elsif (exists $params{xml}) {
 	if ($params{nocreate}) {
-	    $self = Sys::Virt::Domain::_define_xml($con,  $params{xml});
+	    $self = Sys::Virt::Domain::_define_xml($con,  $params{xml}, $params{flags});
 	} else {
 	    if (exists $params{fds}) {
 		$self = Sys::Virt::Domain::_create_with_files($con,  $params{xml},
@@ -1763,8 +1763,24 @@ Do not use OS I/O cache if starting a domain with a saved state image
 
 Boot the guest, even if there was a saved snapshot
 
+=item Sys::Virt::Domain::START_VALIDATE
+
+Validate the XML document against the XML schema
+
 =back
 
+=head2 DOMAIN DEFINE
+
+The following constants can be used to control the behaviour
+of domain define operations
+
+=over 4
+
+=item Sys::Virt::Domain::DEFINE_VALIDATE
+
+Validate the XML document against the XML schema
+
+=back
 
 =head2 KEYCODE SETS
 
@@ -3417,6 +3433,10 @@ Include stats for transient domains
 =item Sys::Virt::Domain::GET_ALL_STATS_ENFORCE_STATS
 
 Require that all requested stats fields are returned
+
+=item Sys::Virt::Domain::GET_ALL_STATS_BACKING
+
+Get stats for image backing files too
 
 =back
 
