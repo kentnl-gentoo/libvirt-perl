@@ -5014,6 +5014,51 @@ get_emulator_pin_info(dom, flags=0)
       RETVAL
 
 
+void
+get_iothread_info(dom, flags=0)
+      virDomainPtr dom;
+      unsigned int flags;
+ PREINIT:
+      virDomainIOThreadInfoPtr *iothrinfo;
+      int niothreads;
+      int i;
+   PPCODE:
+      if ((niothreads = virDomainGetIOThreadInfo(dom, &iothrinfo,
+                                                 flags)) < 0)
+          _croak_error();
+
+      EXTEND(SP, niothreads);
+      for (i = 0 ; i < niothreads ; i++) {
+          HV *rec = newHV();
+          (void)hv_store(rec, "number", 6,
+                         newSViv(iothrinfo[i]->iothread_id), 0);
+          (void)hv_store(rec, "affinity", 8,
+                         newSVpvn((char*)iothrinfo[i]->cpumap,
+                                  iothrinfo[i]->cpumaplen), 0);
+          PUSHs(newRV_noinc((SV *)rec));
+      }
+
+      for (i = 0 ; i < niothreads ; i++) {
+          virDomainIOThreadInfoFree(iothrinfo[i]);
+      }
+      free(iothrinfo);
+
+
+void
+pin_iothread(dom, iothread_id, mask, flags=0)
+     virDomainPtr dom;
+     unsigned int iothread_id;
+     SV *mask;
+     unsigned int flags;
+PREINIT:
+     STRLEN masklen;
+     unsigned char *maps;
+ PPCODE:
+     maps = (unsigned char *)SvPV(mask, masklen);
+     if (virDomainPinIOThread(dom, iothread_id, maps, masklen, flags) < 0)
+         _croak_error();
+
+
 int
 num_of_snapshots(dom, flags=0)
       virDomainPtr dom;
@@ -5197,6 +5242,45 @@ get_fs_info(dom, flags=0)
 	  PUSHs(newRV_noinc((SV*)hv));
       }
       free(info);
+
+void
+get_interface_addresses(dom, src, flags=0)
+        virDomainPtr dom;
+        unsigned int src;
+        unsigned int flags;
+    PREINIT:
+        virDomainInterfacePtr *info;
+        int ninfo;
+        size_t i, j;
+     PPCODE:
+        if ((ninfo = virDomainInterfaceAddresses(dom, &info, src, flags)) < 0)
+	    _croak_error();
+
+        EXTEND(SP, ninfo);
+        for (i = 0; i < ninfo; i++) {
+	    HV *hv = newHV();
+	    AV *av = newAV();
+
+	    (void)hv_store(hv, "name", 4, newSVpv(info[i]->name, 0), 0);
+	    if (info[i]->hwaddr) {
+	      (void)hv_store(hv, "hwaddr", 6, newSVpv(info[i]->hwaddr, 0), 0);
+	    }
+
+	    for (j = 0; j < info[i]->naddrs; j++) {
+	      HV *subhv = newHV();
+
+	      (void)hv_store(subhv, "type", 4, newSViv(info[i]->addrs[j].type), 0);
+	      (void)hv_store(subhv, "addr", 4, newSVpv(info[i]->addrs[j].addr, 0), 0);
+	      (void)hv_store(subhv, "prefix", 6, newSViv(info[i]->addrs[j].prefix), 0);
+	      av_push(av, newRV_noinc((SV*)subhv));
+	    }
+	    (void)hv_store(hv, "addrs", 5, newRV_noinc((SV*)av), 0);
+
+	    virDomainInterfaceFree(info[i]);
+
+	    PUSHs(newRV_noinc((SV*)hv));
+	}
+        free(info);
 
 void
 send_process_signal(dom, pidsv, signum, flags=0)
@@ -7147,6 +7231,7 @@ BOOT:
       REGISTER_CONSTANT_STR(VIR_NODE_MEMORY_SHARED_MERGE_ACROSS_NODES, NODE_MEMORY_SHARED_MERGE_ACROSS_NODES);
 
       REGISTER_CONSTANT(VIR_CONNECT_BASELINE_CPU_EXPAND_FEATURES, BASELINE_CPU_EXPAND_FEATURES);
+      REGISTER_CONSTANT(VIR_CONNECT_BASELINE_CPU_MIGRATABLE, BASELINE_CPU_MIGRATABLE);
 
       REGISTER_CONSTANT(VIR_CONNECT_COMPARE_CPU_FAIL_INCOMPATIBLE, COMPARE_CPU_FAIL_INCOMPATIBLE);
 
@@ -7222,6 +7307,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_PAUSED_SHUTTING_DOWN, STATE_PAUSED_SHUTTING_DOWN);
       REGISTER_CONSTANT(VIR_DOMAIN_PAUSED_SNAPSHOT, STATE_PAUSED_SNAPSHOT);
       REGISTER_CONSTANT(VIR_DOMAIN_PAUSED_CRASHED, STATE_PAUSED_CRASHED);
+      REGISTER_CONSTANT(VIR_DOMAIN_PAUSED_STARTING_UP, STATE_PAUSED_STARTING_UP);
 
       REGISTER_CONSTANT(VIR_DOMAIN_SHUTDOWN_UNKNOWN, STATE_SHUTDOWN_UNKNOWN);
       REGISTER_CONSTANT(VIR_DOMAIN_SHUTDOWN_USER, STATE_SHUTDOWN_USER);
@@ -7389,6 +7475,10 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_CONTROL_OCCUPIED, CONTROL_OCCUPIED);
       REGISTER_CONSTANT(VIR_DOMAIN_CONTROL_ERROR, CONTROL_ERROR);
 
+      REGISTER_CONSTANT(VIR_DOMAIN_CONTROL_ERROR_REASON_NONE, CONTROL_ERROR_REASON_NONE);
+      REGISTER_CONSTANT(VIR_DOMAIN_CONTROL_ERROR_REASON_UNKNOWN, CONTROL_ERROR_REASON_UNKNOWN);
+      REGISTER_CONSTANT(VIR_DOMAIN_CONTROL_ERROR_REASON_INTERNAL, CONTROL_ERROR_REASON_INTERNAL);
+      REGISTER_CONSTANT(VIR_DOMAIN_CONTROL_ERROR_REASON_MONITOR, CONTROL_ERROR_REASON_MONITOR);
 
       REGISTER_CONSTANT(VIR_DOMAIN_DEVICE_MODIFY_CURRENT, DEVICE_MODIFY_CURRENT);
       REGISTER_CONSTANT(VIR_DOMAIN_DEVICE_MODIFY_LIVE, DEVICE_MODIFY_LIVE);
@@ -7752,6 +7842,12 @@ BOOT:
       REGISTER_CONSTANT_STR(VIR_DOMAIN_TUNABLE_BLKDEV_TOTAL_BYTES_SEC_MAX, TUNABLE_BLKDEV_TOTAL_BYTES_SEC_MAX);
       REGISTER_CONSTANT_STR(VIR_DOMAIN_TUNABLE_BLKDEV_TOTAL_IOPS_SEC_MAX, TUNABLE_BLKDEV_TOTAL_IOPS_SEC_MAX);
       REGISTER_CONSTANT_STR(VIR_DOMAIN_TUNABLE_BLKDEV_SIZE_IOPS_SEC, TUNABLE_BLKDEV_SIZE_IOPS_SEC);
+      REGISTER_CONSTANT_STR(VIR_DOMAIN_TUNABLE_CPU_IOTHREADSPIN, TUNABLE_IOTHREADSPIN);
+
+
+      REGISTER_CONSTANT(VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_AGENT, INTERFACE_ADDRESSES_SRC_AGENT);
+      REGISTER_CONSTANT(VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE, INTERFACE_ADDRESSES_SRC_LEASE);
+
 
       stash = gv_stashpv( "Sys::Virt::DomainSnapshot", TRUE );
       REGISTER_CONSTANT(VIR_DOMAIN_SNAPSHOT_DELETE_CHILDREN, DELETE_CHILDREN);
@@ -8008,6 +8104,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_FROM_CRYPTO, FROM_CRYPTO);
       REGISTER_CONSTANT(VIR_FROM_FIREWALL, FROM_FIREWALL);
       REGISTER_CONSTANT(VIR_FROM_POLKIT, FROM_POLKIT);
+      REGISTER_CONSTANT(VIR_FROM_THREAD, FROM_THREAD);
 
 
       REGISTER_CONSTANT(VIR_ERR_OK, ERR_OK);

@@ -356,6 +356,10 @@ The guest is paused while a snapshot takes place
 
 The guest is paused due to a kernel panic
 
+=item Sys::Virt::Domain::STATE_PAUSED_STARTING_UP
+
+The guest is paused as it is being started up.
+
 =item Sys::Virt::Domain::STATE_RUNNING_BOOTED
 
 The guest is running after being booted
@@ -1216,6 +1220,23 @@ the physical CPUa, 8 cpus per character. To create a suitable
 bitstring, use the C<vec> function with a value of C<1> for the
 C<BITS> parameter.
 
+=item @iothreadinfo = $dom->get_iothread_info($flags=0)
+
+Obtain information about the state of all IOThreads in a running
+guest domain. The returned list will have one element for each IOThread,
+where each elements contains a hash reference. The keys in the hash
+are, C<number> the IOThread number and C<affinity> giving the allowed
+schedular placement. The value for C<affinity> is a
+string representing a bitmask against physical CPUs, 8 cpus per
+character. To extract the bits use the C<unpack> function with
+the C<b*> template.
+
+=item $dom->pin_iothread($iothread, $mask)
+
+Pin the IOThread given by index C<$iothread> to physical CPUs
+given by C<$mask>. The C<$mask> is a string representing a bitmask
+against physical CPUs, 8 cpus per character.
+
 =item my @stats = $dom->get_cpu_stats($startCpu, $numCpus, $flags=0)
 
 Requests the guests host physical CPU usage statistics, starting
@@ -1657,6 +1678,61 @@ configuration
 
 =back
 
+=item @nics = $dom->get_interface_addresses($src, $flags=0);
+
+Obtain a list of all guest network interfaces. The C<$src>
+parameter is one of the constants
+
+=over 4
+
+=item Sys::Virt::Domain::INTERFACE_ADDRESSES_SRC_LEASE
+
+Extract the DHCP server lease information
+
+=item Sys::Virt::Domain::INTERFACE_ADDRESSES_SRC_AGENT
+
+Query the guest OS via an agent
+
+=back
+
+The returned list will contain one element for each interface.
+The values in the list will be a hash reference with the
+following keys
+
+=over 4
+
+=item name
+
+The name of the guest interface that is mounted
+
+=item hwaddr
+
+The hardware address, aka MAC, if available.
+
+=item addrs
+
+An array reference containing list of IP addresses
+associated with the guest NIC. Each element in the
+array is a further hash containing
+
+=over 4
+
+=item addr
+
+The IP address string
+
+=item prefix
+
+The IP address network prefix
+
+=item type
+
+The IP address type (IPv4 vs IPv6)
+
+=back
+
+=back
+
 =item $dom->send_process_signal($pid, $signum, $flags=0);
 
 Send the process C<$pid> the signal C<$signum>. The
@@ -1737,6 +1813,29 @@ The control channel is busy
 =item Sys::Virt::Domain::CONTROL_JOB
 
 The control channel is busy with a job
+
+=back
+
+If the status is C<Sys::Virt::Domain::CONTROL_ERROR>, then one
+of the following constants describes the reason
+
+=over 4
+
+=item Sys::Virt::Domain::CONTROL_ERROR_REASON_NONE
+
+There is no reason for the error available
+
+=item Sys::Virt::Domain::CONTROL_ERROR_REASON_UNKNOWN
+
+The reason for the error is unknown
+
+=item Sys::Virt::Domain::CONTROL_ERROR_REASON_INTERNAL
+
+There was an internal error in libvirt
+
+=item Sys::Virt::Domain::CONTROL_ERROR_REASON_MONITOR
+
+There was an error speaking to the monitor
 
 =back
 
@@ -3833,6 +3932,10 @@ Maximum write throughput in I/O operations per sec
 =item Sys::Virt::Domain::TUNABLE_BLKDEV_SIZE_IOPS_SEC
 
 The maximum I/O operations per second
+
+=item Sys::Virt::Domain::TUNABLE_IOTHREADSPIN
+
+The I/O threads pinning
 
 =back
 

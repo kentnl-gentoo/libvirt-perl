@@ -4,6 +4,7 @@ examples/auth.pl
 examples/devices.pl
 examples/dhcp-leases.pl
 examples/dom-fsinfo.pl
+examples/dom-ifinfo.pl
 examples/dom-stats.pl
 examples/dump-info.pl
 examples/dump-xml.pl
@@ -11,6 +12,7 @@ examples/emulator-pin.pl
 examples/events.pl
 examples/fs-freeze.pl
 examples/hv-stat.pl
+examples/iothreadinfo.pl
 examples/node-alloc.pl
 examples/node-cpu.pl
 examples/node-devlist.pl

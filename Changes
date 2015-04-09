@@ -1,5 +1,18 @@
 Revision history for perl module Sys::Virt
 
+1.2.14 2015-04-09
+
+ - Add VIR_CONNECT_BASELINE_CPU_MIGRATABLE constant
+ - Add VIR_DOMAIN_CONTROL_ERROR_* constants
+ - Add virDomainGetIOThreads and virDomainPinIOThread API bindings
+ - Update the vcpuinfo.pl example to use unpack
+ - Add VIR_DOMAIN_TUNABLE_CPU_IOTHREADSPIN constant
+ - Add virDomainInterfaceAddress function & constants
+ - Add VIR_DOMAIN_PAUSED_STARTING_UP constant
+ - Adapt to rename of virDomainIOThreadsInfoFree to virDomainIOThreadInfoFree
+ - Adapt to rename of virDomainGetIOThreadsInfo to virDomainGetIOThreadInfo
+ - Add VIR_FROM_THREAD constant
+
 1.2.13 2015-03-05
 
  - Add VIR_STORAGE_VOL_CREATE_REFLINK constant

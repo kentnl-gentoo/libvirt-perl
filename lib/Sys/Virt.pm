@@ -78,7 +78,7 @@ use Sys::Virt::NWFilter;
 use Sys::Virt::DomainSnapshot;
 use Sys::Virt::Stream;
 
-our $VERSION = '1.2.13';
+our $VERSION = '1.2.14';
 require XSLoader;
 XSLoader::load('Sys::Virt', $VERSION);
 
@@ -1605,6 +1605,10 @@ parameter can take one of
 
 Expand the CPU definition to list all feature flags, even those
 implied by the model name.
+
+=item Sys::Virt::BASELINE_CPU_MIGRATABLE
+
+Only include features which can be live migrated.
 
 =back
 
