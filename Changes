@@ -1,5 +1,13 @@
 Revision history for perl module Sys::Virt
 
+1.2.15 2015-05-05
+
+ - Add support for VIR_DOMAIN_EVENT_ID_DEVICE_ADDED
+   event callback & constants.
+ - Add JOB_DOWNTIME_NET constant
+ - Add JOB_TIME_ELAPSED_NET constant
+ - Add virDomainAddIOThread and virDomainDelIOThread API bindings
+
 1.2.14 2015-04-09
 
  - Add VIR_CONNECT_BASELINE_CPU_MIGRATABLE constant
