@@ -977,6 +977,13 @@ host, thus use of an explicit restricted listen address is recommended.
 
 =back
 
+=item C<Sys::Virt::Domain::MIGRATE_PARAM_MIGRATE_DISKS>
+
+The list of disks to migrate when doing block storage migration.
+In constrast to other parameters whose values are plain strings,
+the parameter value should be an array reference, whose elements
+are in turn strings representing the disk target names.
+
 =item $ddom = $dom->migrate(destcon, flags=0, dname=undef, uri=undef, bandwidth=0)
 
 Migrate a domain to an alternative host. Use of positional parameters
@@ -1044,9 +1051,9 @@ sub migrate2 {
 }
 
 
-=item $ddom = $dom->migrate_to_uri(destcon, \%params, flags=0)
+=item $ddom = $dom->migrate_to_uri(desturi, \%params, flags=0)
 
-Migrate a domain to an alternative host. The C<destri> parameter
+Migrate a domain to an alternative host. The C<desturi> parameter
 should be a valid libvirt connection URI for the remote target host.
 The C<flags> parameter takes one or more of the C<Sys::Virt::Domain::MIGRATE_XXX>
 constants described later in this document. The C<%params> parameter is
@@ -2935,6 +2942,10 @@ The guest attempted to gracefully shutdown after the watchdog fired
 =item Sys::Virt::Domain::EVENT_WATCHDOG_DEBUG
 
 No action was taken, the watchdog was logged
+
+=item Sys::Virt::Domain::EVENT_WATCHDOG_INJECTNMI
+
+An NMI was injected into the guest after the watchdog fired
 
 =back
 

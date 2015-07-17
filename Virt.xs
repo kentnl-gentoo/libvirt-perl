@@ -272,6 +272,41 @@ vir_typed_param_from_hv(HV *newparams, virTypedParameter *params, int nparams)
 }
 
 
+static void
+vir_typed_param_add_string_list_from_hv(HV *newparams,
+					virTypedParameter **params,
+					int *nparams,
+					const char *key)
+{
+    if (!hv_exists(newparams, key, strlen(key))) {
+        return;
+    }
+    SSize_t nstr, i;
+    virTypedParameter *localparams = *params;
+
+    SV **val = hv_fetch(newparams, key, strlen(key), 0);
+    AV *av = (AV*)(SvRV(*val));
+    nstr = av_len(av) + 1;
+
+    Renew(localparams, *nparams + nstr, virTypedParameter);
+
+    for (i = 0 ; i < nstr ; i++) {
+      STRLEN len;
+      SV **subval = av_fetch(av, i, 0);
+      char *ptr = SvPV(*subval, len);
+
+      strncpy(localparams[*nparams + i].field, key,
+	      VIR_TYPED_PARAM_FIELD_LENGTH);
+
+      localparams[*nparams + i].type = VIR_TYPED_PARAM_STRING;
+      localparams[*nparams + i].value.s = ptr;
+    }
+
+    *params = localparams;
+    *nparams += nstr;
+}
+
+
 static int
 _domain_event_lifecycle_callback(virConnectPtr con,
                                  virDomainPtr dom,
@@ -4374,8 +4409,10 @@ _migrate(dom, destcon, newparams, flags=0)
              VIR_TYPED_PARAM_FIELD_LENGTH);
      params[5].type = VIR_TYPED_PARAM_STRING;
 
-
      nparams = vir_typed_param_from_hv(newparams, params, nparams);
+
+     vir_typed_param_add_string_list_from_hv(newparams, &params, &nparams,
+					     VIR_MIGRATE_PARAM_MIGRATE_DISKS);
 
      /* No need to support virDomainMigrate/virDomainMigrate2, since
       * virDomainMigrate3 takes care to call the older APIs internally
@@ -4428,6 +4465,9 @@ _migrate_to_uri(dom, desturi, newparams, flags=0)
      params[5].type = VIR_TYPED_PARAM_STRING;
 
      nparams = vir_typed_param_from_hv(newparams, params, nparams);
+
+     vir_typed_param_add_string_list_from_hv(newparams, &params, &nparams,
+					     VIR_MIGRATE_PARAM_MIGRATE_DISKS);
 
      /* No need to support virDomainMigrateToURI/virDomainMigrateToURI2, since
       * virDomainMigrate3 takes care to call the older APIs internally
@@ -7448,6 +7488,7 @@ BOOT:
       REGISTER_CONSTANT_STR(VIR_MIGRATE_PARAM_GRAPHICS_URI, MIGRATE_PARAM_GRAPHICS_URI);
       REGISTER_CONSTANT_STR(VIR_MIGRATE_PARAM_URI, MIGRATE_PARAM_URI);
       REGISTER_CONSTANT_STR(VIR_MIGRATE_PARAM_LISTEN_ADDRESS, MIGRATE_PARAM_LISTEN_ADDRESS);
+      REGISTER_CONSTANT_STR(VIR_MIGRATE_PARAM_MIGRATE_DISKS, MIGRATE_PARAM_MIGRATE_DISKS);
 
       REGISTER_CONSTANT(VIR_DOMAIN_XML_SECURE, XML_SECURE);
       REGISTER_CONSTANT(VIR_DOMAIN_XML_INACTIVE, XML_INACTIVE);
@@ -7648,6 +7689,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_WATCHDOG_POWEROFF, EVENT_WATCHDOG_POWEROFF);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_WATCHDOG_SHUTDOWN, EVENT_WATCHDOG_SHUTDOWN);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_WATCHDOG_DEBUG, EVENT_WATCHDOG_DEBUG);
+      REGISTER_CONSTANT(VIR_DOMAIN_EVENT_WATCHDOG_INJECTNMI, EVENT_WATCHDOG_INJECTNMI);
 
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_IO_ERROR_NONE, EVENT_IO_ERROR_NONE);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_IO_ERROR_PAUSE, EVENT_IO_ERROR_PAUSE);
@@ -8182,6 +8224,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_FROM_FIREWALL, FROM_FIREWALL);
       REGISTER_CONSTANT(VIR_FROM_POLKIT, FROM_POLKIT);
       REGISTER_CONSTANT(VIR_FROM_THREAD, FROM_THREAD);
+      REGISTER_CONSTANT(VIR_FROM_ADMIN, FROM_ADMIN);
 
 
       REGISTER_CONSTANT(VIR_ERR_OK, ERR_OK);

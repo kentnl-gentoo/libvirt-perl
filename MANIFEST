@@ -5,6 +5,7 @@ examples/devices.pl
 examples/dhcp-leases.pl
 examples/dom-fsinfo.pl
 examples/dom-ifinfo.pl
+examples/dom-migrate.pl
 examples/dom-stats.pl
 examples/dump-info.pl
 examples/dump-xml.pl
