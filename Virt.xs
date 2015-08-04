@@ -297,6 +297,7 @@ vir_typed_param_add_string_list_from_hv(HV *newparams,
 
       strncpy(localparams[*nparams + i].field, key,
 	      VIR_TYPED_PARAM_FIELD_LENGTH);
+      localparams[*nparams + i].field[VIR_TYPED_PARAM_FIELD_LENGTH - 1] = '\0';
 
       localparams[*nparams + i].type = VIR_TYPED_PARAM_STRING;
       localparams[*nparams + i].value.s = ptr;
@@ -8320,4 +8321,5 @@ BOOT:
       REGISTER_CONSTANT(VIR_ERR_STORAGE_VOL_EXIST, ERR_STORAGE_VOL_EXIST);
       REGISTER_CONSTANT(VIR_ERR_CPU_INCOMPATIBLE, ERR_CPU_INCOMPATIBLE);
       REGISTER_CONSTANT(VIR_ERR_XML_INVALID_SCHEMA, ERR_INVALID_SCHEMA);
+      REGISTER_CONSTANT(VIR_ERR_MIGRATE_FINISH_OK, ERR_MIGRATE_FINISH_OK);
     }
