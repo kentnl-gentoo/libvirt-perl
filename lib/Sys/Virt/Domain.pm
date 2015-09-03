@@ -514,6 +514,12 @@ by the guest OS.
 
 =back
 
+=item $dom->rename($newname, $flags=0)
+
+Change the name of an inactive guest to be C<$newname>.
+The C<$flags> parameter is currently unused and defaults
+to zero.
+
 =item my @errs = $dom->get_disk_errors($flags=0)
 
 Returns a list of all disk errors that have occurred on
@@ -2520,6 +2526,10 @@ The peak inbound bandwidth
 
 The burstable inbound bandwidth
 
+=item Sys::Virt::Domain::BANDWIDTH_IN_FLOOR
+
+The minimum inbound bandwidth
+
 =item Sys::Virt::Domain::BANDWIDTH_OUT_AVERAGE
 
 The average outbound bandwidth
@@ -2585,6 +2595,10 @@ The defined configuration is newly added
 =item Sys::Virt::Domain::EVENT_DEFINED_UPDATED
 
 The defined configuration is an update to an existing configuration
+
+=item Sys::Virt::Domain::EVENT_DEFINED_RENAMED
+
+The defined configuration is a rename of an existing configuration
 
 =back
 
@@ -2735,6 +2749,10 @@ The persistent configuration has gone away
 
 The domain configuration has gone away due to it being
 removed by administrator.
+
+=item Sys::Virt::Domain::EVENT_UNDEFINED_RENAMED
+
+The undefined configuration is a rename of an existing configuration
 
 =back
 
