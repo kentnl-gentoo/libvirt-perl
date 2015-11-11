@@ -1,5 +1,9 @@
 Revision history for perl module Sys::Virt
 
+1.2.21 2015-11-11
+
+ - Add VIR_STORAGE_VOL_DELETE_WITH_SNAPSHOTS constant
+
 1.2.19 2015-09-03
 
  - Add VIR_DOMAIN_BANDWIDTH_IN_FLOOR constant
