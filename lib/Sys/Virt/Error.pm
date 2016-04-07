@@ -394,6 +394,10 @@ The logging service
 
 The Xen XL driver
 
+=item Sys::Virt::Error::FROM_PERF
+
+The performance events subsystem
+
 =back
 
 =head2 ERROR CODE CONSTANTS
@@ -779,6 +783,14 @@ The XML document does not comply with the XML schema
 =item Sys::Virt::Error::ERR_MIGRATE_FINISH_OK
 
 Migration finished but expected to return NULL domain.
+
+=item Sys::Virt::Error::ERR_AUTH_UNAVAILABLE
+
+Authentication services were not available
+
+=item Sys::Virt::Error::ERR_NO_SERVER
+
+Libvirt server was not found
 
 =back
 

@@ -360,6 +360,14 @@ The guest is paused due to a kernel panic
 
 The guest is paused as it is being started up.
 
+=item Sys::Virt::Domain::STATE_PAUSED_POSTCOPY
+
+The guest is paused as post-copy migration is taking place
+
+=item Sys::Virt::Domain::STATE_PAUSED_POSTCOPY_FAILED
+
+The guest is paused as post-copy migration failed
+
 =item Sys::Virt::Domain::STATE_RUNNING_BOOTED
 
 The guest is running after being booted
@@ -399,6 +407,10 @@ The guest is running after wakeup from power management suspend
 =item Sys::Virt::Domain::STATE_RUNNING_CRASHED
 
 The guest was restarted after crashing
+
+=item Sys::Virt::Domain::STATE_RUNNING_POSTCOPY
+
+The guest is running but post-copy is taking place
 
 =item Sys::Virt::Domain::STATE_BLOCKED_UNKNOWN
 
@@ -800,6 +812,23 @@ of the NUMA PARAMETERS constants. The C<$flags>
 parameter accepts one or more the CONFIG OPTION constants
 documented later, and defaults to 0 if omitted.
 
+=item my $params = $dom->get_perf_events($flags=0)
+
+Return a hash reference containing the set of performance
+events that are available for the guest. The keys in the
+hash are one of the constants PERF EVENTS described later.
+The C<$flags> parameter accepts one or more the CONFIG
+OPTION constants documented later, and defaults to 0 if
+omitted.
+
+=item $dom->set_perf_events($params, $flags=0)
+
+Update the enabled state for performance events for the
+guest. The C<$params> should be a hash reference whose
+keys are one of the PERF EVENTS constants. The C<$flags>
+parameter accepts one or more the CONFIG OPTION constants
+documented later, and defaults to 0 if omitted.
+
 =item $dom->block_resize($disk, $newsize, $flags=0)
 
 Resize the disk C<$disk> to have new size C<$newsize> KB. If the disk
@@ -981,6 +1010,12 @@ or ::). This default may be a security risk if guests, or other
 untrusted users have the ability to connect to the virtualization
 host, thus use of an explicit restricted listen address is recommended.
 
+=item C<Sys::Virt::Domain::MIGRATE_PARAM_DISK_PORT>
+
+Port that destination server should use for incoming disks migration. Type is
+VIR_TYPED_PARAM_INT. If set to 0 or omitted, libvirt will choose a suitable
+default. At the moment this is only supported by the QEMU driver.
+
 =back
 
 =item C<Sys::Virt::Domain::MIGRATE_PARAM_MIGRATE_DISKS>
@@ -1133,7 +1168,7 @@ sub migrate_to_uri2 {
 }
 
 
-=item $dom->migrate_set_max_downtime($downtime, $flags)
+=item $dom->migrate_set_max_downtime($downtime, $flags=0)
 
 Set the maximum allowed downtime during migration of the guest. A
 longer downtime makes it more likely that migration will complete,
@@ -1141,29 +1176,35 @@ at the cost of longer time blackout for the guest OS at the switch
 over point. The C<downtime> parameter is measured in milliseconds.
 The C<$flags> parameter is currently unused and defaults to zero.
 
-=item $dom->migrate_set_max_speed($bandwidth, $flags)
+=item $dom->migrate_set_max_speed($bandwidth, $flags=0)
 
 Set the maximum allowed bandwidth during migration of the guest.
 The C<bandwidth> parameter is measured in MB/second.
 The C<$flags> parameter is currently unused and defaults to zero.
 
-=item $bandwidth = $dom->migrate_get_max_speed($flag)
+=item $bandwidth = $dom->migrate_get_max_speed($flags=0)
 
 Get the maximum allowed bandwidth during migration fo the guest.
 The returned <bandwidth> value is measured in MB/second.
 The C<$flags> parameter is currently unused and defaults to zero.
 
-=item $dom->migrate_set_compression_cache($cacheSize, $flags)
+=item $dom->migrate_set_compression_cache($cacheSize, $flags=0)
 
 Set the maximum allowed compression cache size during migration of
 the guest. The C<cacheSize> parameter is measured in bytes.
 The C<$flags> parameter is currently unused and defaults to zero.
 
-=item $cacheSize = $dom->migrate_get_compression_cache($flag)
+=item $cacheSize = $dom->migrate_get_compression_cache($flags=0)
 
 Get the maximum allowed compression cache size during migration of
 the guest. The returned <bandwidth> value is measured in bytes.
 The C<$flags> parameter is currently unused and defaults to zero.
+
+=item $dom->migrate_start_post_copy($flags=0)
+
+Switch the domain from pre-copy to post-copy mode. This requires
+that the original migrate command had the C<Sys::Virt::Domain::MIGRATE_POST_COPY>
+flag specified.
 
 =item $dom->inject_nmi($flags)
 
@@ -2257,6 +2298,10 @@ throttling guest runtime
 
 Pin memory for RDMA transfer
 
+=item Sys::Virt::Domain::MIGRATE_POSTCOPY
+
+Enable support for post-copy migration
+
 =back
 
 =head2 UNDEFINE CONSTANTS
@@ -2473,6 +2518,14 @@ The VCPU period tunable
 
 The VCPU quota tunable
 
+=item Sys::Virt::Domain::SCHEDULER_GLOBAL_PERIOD
+
+The VM global period tunable
+
+=item Sys::Virt::Domain::SCHEDULER_GLOBAL_QUOTA
+
+The VM global quota tunable
+
 =item Sys::Virt::Domain::SCHEDULER_WEIGHT
 
 The VM weight tunable
@@ -2552,6 +2605,19 @@ The burstable outbound bandwidth
 
 =back
 
+=head2 PERF EVENTS
+
+The following constants defined performance events
+which can be monitored for a guest
+
+=over 4
+
+=item Sys::Virt::Domain::PERF_PARAM_CMT
+
+The CMT event counter
+
+=back
+
 =head2 VCPU FLAGS
 
 The following constants are useful when getting/setting the
@@ -2608,6 +2674,10 @@ The defined configuration is an update to an existing configuration
 
 The defined configuration is a rename of an existing configuration
 
+=item Sys::Virt::Domain::EVENT_DEFINED_FROM_SNAPSHOT
+
+The defined configuration was restored from a snapshot
+
 =back
 
 =item Sys::Virt::Domain::EVENT_RESUMED
@@ -2628,6 +2698,10 @@ The domain resumed because the admin unpaused it.
 =item Sys::Virt::Domain::EVENT_RESUMED_FROM_SNAPSHOT
 
 The domain resumed because it was restored from a snapshot
+
+=item Sys::Virt::Domain::EVENT_RESUMED_POSTCOPY
+
+The domain resumed but post-copy is running in background
 
 =back
 
@@ -2744,6 +2818,14 @@ The domain has been suspended due to restore from saved state
 =item Sys::Virt::Domain::EVENT_SUSPENDED_API_ERROR
 
 The domain has been suspended due to an API error
+
+=item Sys::Virt::Domain::EVENT_SUSPENDED_POSTCOPY
+
+The domain has been suspended for post-copy migration
+
+=item Sys::Virt::Domain::EVENT_SUSPENDED_POSTCOPY_FAILED
+
+The domain has been suspended due post-copy migration failing
 
 =back
 
@@ -2920,6 +3002,13 @@ The domain was initially booted
 The channel on a running guest changed state
 
 =back
+
+=item Sys::Virt::Domain::EVENT_ID_JOB_COMPLETED
+
+Domain background job completion notification. The callback
+provides a hash containing the job stats. The keyus in the
+hash are the same as those used with the C<Sys::Virt::Domain::get_job_stats()>
+method.
 
 =back
 
@@ -3657,6 +3746,10 @@ General lifecycle state
 
 Virtual CPU info
 
+=item Sys::Virt::Domain::STATS_PERF
+
+Performance event counter values
+
 =back
 
 =head2 PROCESS SIGNALS
@@ -3963,6 +4056,14 @@ VCPU thread period
 =item Sys::Virt::Domain::TUNABLE_CPU_VCPU_QUOTA
 
 VCPU thread quota
+
+=item Sys::Virt::Domain::TUNABLE_CPU_GLOBAL_PERIOD
+
+VM global period
+
+=item Sys::Virt::Domain::TUNABLE_CPU_GLOBAL_QUOTA
+
+VM global quota
 
 =item Sys::Virt::Domain::TUNABLE_BLKDEV_DISK
 
