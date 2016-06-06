@@ -919,6 +919,10 @@ Memory not used by the system
 
 Total memory seen by guest
 
+=item C<rss>
+
+Resident set size. Size of memory resident in host RAM.
+
 =back
 
 =item $info = $dom->get_security_label()
@@ -2640,7 +2644,21 @@ which can be monitored for a guest
 
 =item Sys::Virt::Domain::PERF_PARAM_CMT
 
-The CMT event counter
+The CMT event counter which can be used to measure the usage of
+cache (bytes) by applications running on the platform. It
+corresponds to the "perf.cmt" field in the *Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_MBML
+
+The MBML event counter which can be used to monitor the amount of
+data (bytes/s) sent through the memory controller on the socket.
+It corresponds to the "perf.mbml" field in the *Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_MBMT
+
+The MBMT event counter which can be used to monitor total system
+bandwidth (bytes/s) from one level of cache to another. It
+corresponds to the "perf.mbmt" field in the *Stats APIs.
 
 =back
 
