@@ -695,6 +695,40 @@ Get the number of virtual CPUs in the guest VM.
 The optional C<$flags> parameter can be used to control whether
 to query the setting of the live config or inactive config.
 
+=item $dom->set_guest_vcpus($cpumap, $state, [$flags=0])
+
+Set the online status of the guest OS CPUs. The C<$cpumap>
+parameter describes the set of CPUs to modify (eg "0-3,^1").
+C<$state> is either B<1> to set the CPUs online, or B<0>
+to set them offline. The C<$flags> parameter is currently
+unused and defaults to 0.
+
+=item $info $dom->get_guest_vcpus([$flags=0])
+
+Query information about the guest OS CPUs. The returned
+data is a hash reference with the following keys.
+
+=over 4
+
+=item B<vcpus>
+
+String containing bitmap representing CPU ids reported
+currently known to the guest.
+
+=item B<online>
+
+String containing bitmap representing CPU ids that are
+currently online in the guest.
+
+=item B<offlinable>
+
+String containing bitmap representing CPU ids that can
+be offlined in the guest.
+
+=back
+
+The C<$flags> parameter is currently unused and defaults to 0.
+
 =item $type = $dom->get_scheduler_type()
 
 Return the scheduler type for the guest domain
@@ -1052,6 +1086,15 @@ The size of the cache for xbzrle compression
 =item C<Sys::Virt::Domain::MIGRATE_PARAM_PERSIST_XML>
 
 The alternative persistent XML config to copy
+
+=item C<Sys::Virt::Domain::MIGRATE_PARAM_AUTO_CONVERGE_INITIAL>
+
+The initial percentage to throttle guest vCPUs
+
+=item C<Sys::Virt::Domain::MIGRATE_PARAM_AUTO_CONVERGE_INCREMENT>
+
+The additional percentage step size to throttle guest vCPUs if
+progress is not made
 
 =back
 
@@ -1521,6 +1564,10 @@ The expected amount of file remaining to be processed by the job, in bytes.
 =item Sys::Virt::Domain::JOB_DISK_BPS
 
 The bytes per second transferred
+
+=item Sys::Virt::Domain::JOB_AUTO_CONVERGE_THROTTLE
+
+The percentage by which vCPUs are currently throttled
 
 =item Sys::Virt::Domain::JOB_COMPRESSION_CACHE
 
