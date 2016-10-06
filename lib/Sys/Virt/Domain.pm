@@ -2403,6 +2403,11 @@ domain.
 Also remove any NVRAM state file when undefining the virtual
 domain.
 
+=item Sys::Virt::Domain::UNDEFINE_KEEP_NVRAM
+
+keep NVRAM state file when undefining the virtual
+domain.
+
 =back
 
 =head2 JOB TYPES
@@ -2706,6 +2711,33 @@ It corresponds to the "perf.mbml" field in the *Stats APIs.
 The MBMT event counter which can be used to monitor total system
 bandwidth (bytes/s) from one level of cache to another. It
 corresponds to the "perf.mbmt" field in the *Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_CACHE_MISSES
+
+The cache_misses perf event counter which can be used to measure
+the count of cache misses by applications running on the
+platform. It corresponds to the "perf.cache_misses" field in the
+*Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_CACHE_REFERENCES
+
+The cache_references perf event counter which can be used to
+measure the count of cache hits by applications running on the
+platform. It corresponds to the "perf.cache_references" field in
+the *Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_CPU_CYCLES
+
+The instructions perf event counter which can be used to measure
+the count of instructions by applications running on the
+platform. It corresponds to the "perf.instructions" field in the
+*Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_INSTRUCTIONS
+
+The cpu_cycles perf event counter which can be used to measure
+how many cpu cycles one instruction needs.  It corresponds to the
+"perf.cpu_cycles" field in the *Stats APIs.
 
 =back
 

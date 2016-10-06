@@ -1,5 +1,13 @@
 Revision history for perl module Sys::Virt
 
+2.3.0 2016-10-06
+
+ - Add PERF_PARAM_CACHE_MISSES, PERF_PARAM_CACHE_REFERENCES,
+   PERF_PARAM_CPU_CYCLES, PERF_PARAM_INSTRUCTIONS constants
+ - Add USAGE_TYPE_TLS
+ - Add ERR_AGENT_UNSYNCED
+ - Add VIR_DOMAIN_UNDEFINE_KEEP_NVRAM constant
+
 2.2.0 2016-09-05
 
  - Add virConnectNodeDeviceEventRegisterAny and
