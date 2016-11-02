@@ -1,5 +1,10 @@
 Revision history for perl module Sys::Virt
 
+2.4.0 2016-11-02
+
+ - Add VIR_DOMAIN_VCPU_HOTPLUGGABLE constant
+ - Add constants for the new block iotune parameters for length
+
 2.3.0 2016-10-06
 
  - Add PERF_PARAM_CACHE_MISSES, PERF_PARAM_CACHE_REFERENCES,
