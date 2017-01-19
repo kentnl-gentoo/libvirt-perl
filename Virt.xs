@@ -1,6 +1,6 @@
 /* -*- c -*-
  *
- * Copyright (C) 2006-2014 Red Hat
+ * Copyright (C) 2006-2016 Red Hat
  * Copyright (C) 2006-2014 Daniel P. Berrange
  *
  * This program is free software; You can redistribute it and/or modify
@@ -1096,6 +1096,46 @@ _domain_event_job_completed_callback(virConnectPtr con,
 
 
 static int
+_domain_event_metadata_change_callback(virConnectPtr con,
+				       virDomainPtr dom,
+				       int type,
+				       const char *nsuri,
+				       void *opaque)
+{
+    AV *data = opaque;
+    SV **self;
+    SV **cb;
+    SV *domref;
+    dSP;
+
+    self = av_fetch(data, 0, 0);
+    cb = av_fetch(data, 1, 0);
+
+    SvREFCNT_inc(*self);
+
+    ENTER;
+    SAVETMPS;
+
+    PUSHMARK(SP);
+    XPUSHs(*self);
+    domref = sv_newmortal();
+    sv_setref_pv(domref, "Sys::Virt::Domain", (void*)dom);
+    virDomainRef(dom);
+    XPUSHs(domref);
+    XPUSHs(sv_2mortal(newSViv(type)));
+    XPUSHs(sv_2mortal(newSVpv(nsuri, 0)));
+    PUTBACK;
+
+    call_sv(*cb, G_DISCARD);
+
+    FREETMPS;
+    LEAVE;
+
+    return 0;
+}
+
+
+static int
 _network_event_lifecycle_callback(virConnectPtr con,
 				  virNetworkPtr net,
 				  int event,
@@ -1323,6 +1363,82 @@ _node_device_event_lifecycle_callback(virConnectPtr con,
 }
 
 
+static int
+_secret_event_lifecycle_callback(virConnectPtr con,
+				 virSecretPtr secret,
+				 int event,
+				 int detail,
+				 void *opaque)
+{
+    AV *data = opaque;
+    SV **self;
+    SV **cb;
+    SV *secretref;
+    dSP;
+
+    self = av_fetch(data, 0, 0);
+    cb = av_fetch(data, 1, 0);
+
+    SvREFCNT_inc(*self);
+
+    ENTER;
+    SAVETMPS;
+
+    PUSHMARK(SP);
+    XPUSHs(*self);
+    secretref = sv_newmortal();
+    sv_setref_pv(secretref, "Sys::Virt::Secret", (void*)secret);
+    virSecretRef(secret);
+    XPUSHs(secretref);
+    XPUSHs(sv_2mortal(newSViv(event)));
+    XPUSHs(sv_2mortal(newSViv(detail)));
+    PUTBACK;
+
+    call_sv(*cb, G_DISCARD);
+
+    FREETMPS;
+    LEAVE;
+
+    return 0;
+}
+
+
+static int
+_secret_event_generic_callback(virConnectPtr con,
+				virSecretPtr secret,
+				void *opaque)
+{
+    AV *data = opaque;
+    SV **self;
+    SV **cb;
+    SV *secretref;
+    dSP;
+
+    self = av_fetch(data, 0, 0);
+    cb = av_fetch(data, 1, 0);
+
+    SvREFCNT_inc(*self);
+
+    ENTER;
+    SAVETMPS;
+
+    PUSHMARK(SP);
+    XPUSHs(*self);
+    secretref = sv_newmortal();
+    sv_setref_pv(secretref, "Sys::Virt::Secret", (void*)secret);
+    virSecretRef(secret);
+    XPUSHs(secretref);
+    PUTBACK;
+
+    call_sv(*cb, G_DISCARD);
+
+    FREETMPS;
+    LEAVE;
+
+    return 0;
+}
+
+
 static void
 _domain_event_free(void *opaque)
 {
@@ -1349,6 +1465,14 @@ _storage_pool_event_free(void *opaque)
 
 static void
 _node_device_event_free(void *opaque)
+{
+  SV *sv = opaque;
+  SvREFCNT_dec(sv);
+}
+
+
+static void
+_secret_event_free(void *opaque)
 {
   SV *sv = opaque;
   SvREFCNT_dec(sv);
@@ -3248,6 +3372,9 @@ PREINIT:
       case VIR_DOMAIN_EVENT_ID_DEVICE_REMOVAL_FAILED:
           callback = VIR_DOMAIN_EVENT_CALLBACK(_domain_event_device_generic_callback);
           break;
+      case VIR_DOMAIN_EVENT_ID_METADATA_CHANGE:
+          callback = VIR_DOMAIN_EVENT_CALLBACK(_domain_event_metadata_change_callback);
+          break;
       default:
           callback = VIR_DOMAIN_EVENT_CALLBACK(_domain_event_generic_callback);
           break;
@@ -3417,6 +3544,56 @@ node_device_event_deregister_any(con, callbackID)
       int callbackID;
  PPCODE:
       virConnectNodeDeviceEventDeregisterAny(con, callbackID);
+
+
+int
+secret_event_register_any(conref, secretref, eventID, cb)
+      SV* conref;
+      SV* secretref;
+      int eventID;
+      SV* cb;
+PREINIT:
+      AV *opaque;
+      virConnectPtr con;
+      virSecretPtr secret;
+      virConnectSecretEventGenericCallback callback;
+    CODE:
+      con = (virConnectPtr)SvIV((SV*)SvRV(conref));
+      if (SvROK(secretref)) {
+          secret = (virSecretPtr)SvIV((SV*)SvRV(secretref));
+      } else {
+          secret = NULL;
+      }
+
+      switch (eventID) {
+      case VIR_SECRET_EVENT_ID_LIFECYCLE:
+          callback = VIR_SECRET_EVENT_CALLBACK(_secret_event_lifecycle_callback);
+          break;
+      case VIR_SECRET_EVENT_ID_VALUE_CHANGED:
+          callback = VIR_SECRET_EVENT_CALLBACK(_secret_event_generic_callback);
+          break;
+      default:
+          callback = VIR_SECRET_EVENT_CALLBACK(_secret_event_generic_callback);
+          break;
+      }
+
+      opaque = newAV();
+      SvREFCNT_inc(cb);
+      SvREFCNT_inc(conref);
+      av_push(opaque, conref);
+      av_push(opaque, cb);
+      if ((RETVAL = virConnectSecretEventRegisterAny(con, secret, eventID, callback, opaque, _secret_event_free)) < 0)
+          _croak_error();
+OUTPUT:
+      RETVAL
+
+
+void
+secret_event_deregister_any(con, callbackID)
+      virConnectPtr con;
+      int callbackID;
+ PPCODE:
+      virConnectSecretEventDeregisterAny(con, callbackID);
 
 
 void
@@ -6630,13 +6807,19 @@ wipe_pattern(vol, algorithm, flags=0)
 
 
 HV *
-get_info(vol)
+get_info(vol, flags=0)
       virStorageVolPtr vol;
+      unsigned int flags;
   PREINIT:
       virStorageVolInfo info;
     CODE:
-      if (virStorageVolGetInfo(vol, &info) < 0)
-          _croak_error();
+      if (flags != 0) {
+	  if (virStorageVolGetInfoFlags(vol, &info, flags) < 0)
+              _croak_error();
+      } else {
+          if (virStorageVolGetInfo(vol, &info) < 0)
+              _croak_error();
+      }
 
       RETVAL = (HV *)sv_2mortal((SV*)newHV());
       (void)hv_store (RETVAL, "type", 4, newSViv(info.type), 0);
@@ -8191,6 +8374,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_MIGRATION_ITERATION, EVENT_ID_MIGRATION_ITERATION);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_JOB_COMPLETED, EVENT_ID_JOB_COMPLETED);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_DEVICE_REMOVAL_FAILED, EVENT_ID_DEVICE_REMOVAL_FAILED);
+      REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_METADATA_CHANGE, EVENT_ID_METADATA_CHANGE);
 
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_WATCHDOG_NONE, EVENT_WATCHDOG_NONE);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_WATCHDOG_PAUSE, EVENT_WATCHDOG_PAUSE);
@@ -8275,6 +8459,7 @@ BOOT:
       REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_IOTUNE_READ_IOPS_SEC_MAX, BLOCK_IOTUNE_READ_IOPS_SEC_MAX);
       REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_IOTUNE_WRITE_IOPS_SEC_MAX, BLOCK_IOTUNE_WRITE_IOPS_SEC_MAX);
       REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_IOTUNE_SIZE_IOPS_SEC, BLOCK_IOTUNE_SIZE_IOPS_SEC);
+      REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_IOTUNE_GROUP_NAME, BLOCK_IOTUNE_GROUP_NAME);
       REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_IOTUNE_TOTAL_BYTES_SEC_MAX_LENGTH, BLOCK_IOTUNE_TOTAL_BYTES_SEC_MAX_LENGTH);
       REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_IOTUNE_READ_BYTES_SEC_MAX_LENGTH, BLOCK_IOTUNE_READ_BYTES_SEC_MAX_LENGTH);
       REGISTER_CONSTANT_STR(VIR_DOMAIN_BLOCK_IOTUNE_WRITE_BYTES_SEC_MAX_LENGTH, BLOCK_IOTUNE_WRITE_BYTES_SEC_MAX_LENGTH);
@@ -8300,6 +8485,12 @@ BOOT:
       REGISTER_CONSTANT_STR(VIR_PERF_PARAM_CACHE_REFERENCES, PERF_PARAM_CACHE_REFERENCES);
       REGISTER_CONSTANT_STR(VIR_PERF_PARAM_CPU_CYCLES, PERF_PARAM_CPU_CYCLES);
       REGISTER_CONSTANT_STR(VIR_PERF_PARAM_INSTRUCTIONS, PERF_PARAM_INSTRUCTIONS);
+      REGISTER_CONSTANT_STR(VIR_PERF_PARAM_BRANCH_INSTRUCTIONS, PERF_PARAM_BRANCH_INSTRUCTIONS);
+      REGISTER_CONSTANT_STR(VIR_PERF_PARAM_BRANCH_MISSES, PERF_PARAM_BRANCH_MISSES);
+      REGISTER_CONSTANT_STR(VIR_PERF_PARAM_BUS_CYCLES, PERF_PARAM_BUS_CYCLES);
+      REGISTER_CONSTANT_STR(VIR_PERF_PARAM_STALLED_CYCLES_FRONTEND, PERF_PARAM_STALLED_CYCLES_FRONTEND);
+      REGISTER_CONSTANT_STR(VIR_PERF_PARAM_STALLED_CYCLES_BACKEND, PERF_PARAM_STALLED_CYCLES_BACKEND);
+      REGISTER_CONSTANT_STR(VIR_PERF_PARAM_REF_CPU_CYCLES, PERF_PARAM_REF_CPU_CYCLES);
 
       REGISTER_CONSTANT_STR(VIR_DOMAIN_BANDWIDTH_IN_AVERAGE, BANDWIDTH_IN_AVERAGE);
       REGISTER_CONSTANT_STR(VIR_DOMAIN_BANDWIDTH_IN_PEAK, BANDWIDTH_IN_PEAK);
@@ -8491,6 +8682,7 @@ BOOT:
       REGISTER_CONSTANT_STR(VIR_DOMAIN_TUNABLE_BLKDEV_TOTAL_BYTES_SEC_MAX, TUNABLE_BLKDEV_TOTAL_BYTES_SEC_MAX);
       REGISTER_CONSTANT_STR(VIR_DOMAIN_TUNABLE_BLKDEV_TOTAL_IOPS_SEC_MAX, TUNABLE_BLKDEV_TOTAL_IOPS_SEC_MAX);
       REGISTER_CONSTANT_STR(VIR_DOMAIN_TUNABLE_BLKDEV_SIZE_IOPS_SEC, TUNABLE_BLKDEV_SIZE_IOPS_SEC);
+      REGISTER_CONSTANT_STR(VIR_DOMAIN_TUNABLE_BLKDEV_GROUP_NAME, TUNABLE_BLKDEV_GROUP_NAME);
       REGISTER_CONSTANT_STR(VIR_DOMAIN_TUNABLE_BLKDEV_READ_BYTES_SEC_MAX_LENGTH, TUNABLE_BLKDEV_READ_BYTES_SEC_MAX_LENGTH);
       REGISTER_CONSTANT_STR(VIR_DOMAIN_TUNABLE_BLKDEV_READ_IOPS_SEC_MAX_LENGTH, TUNABLE_BLKDEV_READ_IOPS_SEC_MAX_LENGTH);
       REGISTER_CONSTANT_STR(VIR_DOMAIN_TUNABLE_BLKDEV_WRITE_BYTES_SEC_MAX_LENGTH, TUNABLE_BLKDEV_WRITE_BYTES_SEC_MAX_LENGTH);
@@ -8693,6 +8885,8 @@ BOOT:
       REGISTER_CONSTANT(VIR_STORAGE_VOL_CREATE_PREALLOC_METADATA, CREATE_PREALLOC_METADATA);
       REGISTER_CONSTANT(VIR_STORAGE_VOL_CREATE_REFLINK, CREATE_REFLINK);
 
+      REGISTER_CONSTANT(VIR_STORAGE_VOL_USE_ALLOCATION, USE_ALLOCATION);
+      REGISTER_CONSTANT(VIR_STORAGE_VOL_GET_PHYSICAL, GET_PHYSICAL);
 
       stash = gv_stashpv( "Sys::Virt::Secret", TRUE );
       REGISTER_CONSTANT(VIR_SECRET_USAGE_TYPE_NONE, USAGE_TYPE_NONE);
@@ -8706,6 +8900,12 @@ BOOT:
       REGISTER_CONSTANT(VIR_CONNECT_LIST_SECRETS_NO_EPHEMERAL, LIST_NO_EPHEMERAL);
       REGISTER_CONSTANT(VIR_CONNECT_LIST_SECRETS_PRIVATE, LIST_PRIVATE);
       REGISTER_CONSTANT(VIR_CONNECT_LIST_SECRETS_NO_PRIVATE, LIST_NO_PRIVATE);
+
+      REGISTER_CONSTANT(VIR_SECRET_EVENT_ID_LIFECYCLE, EVENT_ID_LIFECYCLE);
+      REGISTER_CONSTANT(VIR_SECRET_EVENT_ID_VALUE_CHANGED, EVENT_ID_VALUE_CHANGED);
+
+      REGISTER_CONSTANT(VIR_SECRET_EVENT_DEFINED, EVENT_DEFINED);
+      REGISTER_CONSTANT(VIR_SECRET_EVENT_UNDEFINED, EVENT_UNDEFINED);
 
 
       stash = gv_stashpv( "Sys::Virt::Stream", TRUE );

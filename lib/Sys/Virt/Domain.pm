@@ -2566,6 +2566,11 @@ The maximum I/O operations written per second.
 
 The maximum I/O operations per second
 
+=item Sys::Virt::Domain::BLOCK_IOTUNE_GROUP_NAME
+
+A string representing a group name to allow sharing of I/O
+throttling quota between multiple drives
+
 =item Sys::Virt::Domain::BLOCK_IOTUNE_TOTAL_BYTES_SEC_MAX_LENGTH
 
 The duration in seconds allowed for maximum total bytes processed per second.
@@ -2753,16 +2758,56 @@ the *Stats APIs.
 
 =item Sys::Virt::Domain::PERF_PARAM_CPU_CYCLES
 
+The cpu_cycles perf event counter which can be used to measure
+how many cpu cycles one instruction needs.  It corresponds to the
+"perf.cpu_cycles" field in the *Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_INSTRUCTIONS
+
 The instructions perf event counter which can be used to measure
 the count of instructions by applications running on the
 platform. It corresponds to the "perf.instructions" field in the
 *Stats APIs.
 
-=item Sys::Virt::Domain::PERF_PARAM_INSTRUCTIONS
+=item Sys::Virt::Domain::PERF_PARAM_BRANCH_INSTRUCTIONS
 
-The cpu_cycles perf event counter which can be used to measure
-how many cpu cycles one instruction needs.  It corresponds to the
-"perf.cpu_cycles" field in the *Stats APIs.
+The branch_instructions perf event counter which can be used to measure
+the count of instructions by applications running on the
+platform. It corresponds to the "perf.branch_instructions" field in the
+*Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_BRANCH_MISSES
+
+The branch_misses perf event which can be used to measure the
+count of branch misses by applications running on the platform.
+It corresponds to the "perf.branch_misses" field in the *Stats
+APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_BUS_CYCLES
+The bus_cycles perf event counter which can be used to measure
+the count of bus cycles by applications running on the platform.
+It corresponds to the "perf.bus_cycles" field in the *Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_STALLED_CYCLES_FRONTEND
+The stalled_cycles_frontend perf event counter which can be used
+to measure the count of stalled cpu cycles in the frontend of the
+instruction processor pipeline by applications running on the
+platform. It corresponds to the "perf.stalled_cycles_frontend"
+field in the *Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_STALLED_CYCLES_BACKEND
+The stalled_cycles_backend perf event counter which can be used
+to measure the count of stalled cpu cycles in the backend of the
+instruction processor pipeline by application running on the
+platform. It corresponds to the "perf.stalled_cycles_backend"
+field in the *Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_REF_CPU_CYCLES
+The ref_cpu_cycles perf event counter which can be used to
+measure the count of total cpu cycles not affected by CPU
+frequency scaling by applications running on the platform.
+It corresponds to the "perf.ref_cpu_cycles" field in the
+*Stats APIs.
 
 =back
 
@@ -3165,6 +3210,10 @@ method.
 =item Sys::Virt::Domain::EVENT_ID_DEVICE_REMOVAL_FAILED
 
 Guest device removal has failed.
+
+=item Sys::Virt::Domain::EVENT_ID_METADATA_CHANGE
+
+The domain metadata has changed
 
 =back
 
@@ -4325,6 +4374,10 @@ The duration in seconds allowed for maximum I/O operations read per second.
 =item Sys::Virt::Domain::TUNABLE_BLKDEV_WRITE_IOPS_SEC_MAX_LENGTH
 
 The duration in seconds allowed for maximum I/O operations written per second.
+
+=item Sys::Virt::Domain::TUNABLE_BLKDEV_GROUP_NAME
+
+The name of the blkdev group
 
 =item Sys::Virt::Domain::TUNABLE_IOTHREADSPIN
 
