@@ -1924,6 +1924,15 @@ C<$signum> value must be one of the constants listed
 later, not a POSIX or Linux signal value. C<$flags>
 is currently unused and defaults to zero.
 
+=item $dom->set_block_threshold($dev, $threshold, $flags=0);
+
+Set the threshold level for delivering the
+EVENT_ID_BLOCK_THRESHOLD if the device or backing chain element
+described by C<$dev> is written beyond the set C<$threshold>
+level. The threshold level is unset once the event fires. The
+event might not be delivered at all if libvirtd was not running
+at the moment when the threshold was reached.
+
 =back
 
 =head1 CONSTANTS
@@ -2384,6 +2393,13 @@ Pin memory for RDMA transfer
 
 Enable support for post-copy migration
 
+=item Sys::Virt::Domain::MIGRATE_TLS
+
+Setting this flag will cause the migration to attempt to use the
+TLS environment configured by the hypervisor in order to perform
+the migration. If incorrectly configured on either source or
+destination, the migration will fail.
+
 =back
 
 =head2 UNDEFINE CONSTANTS
@@ -2814,6 +2830,60 @@ frequency scaling by applications running on the platform.
 It corresponds to the "perf.ref_cpu_cycles" field in the
 *Stats APIs.
 
+=item Sys::Virt::Domain::PERF_PARAM_CPU_CLOCK
+The cpu_clock perf event counter which can be used to
+measure the count of cpu clock time by applications
+running on the platform. It corresponds to the
+"perf.cpu_clock" field in the *Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_TASK_CLOCK
+The task_clock perf event counter which can be used to
+measure the count of task clock time by applications
+running on the platform. It corresponds to the
+"perf.task_clock" field in the *Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_PAGE_FAULTS
+The page_faults perf event counter which can be used to
+measure the count of page faults by applications running
+on the platform. It corresponds to the "perf.page_faults"
+field in the *Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_CONTEXT_SWITCHES
+The context_switches perf event counter which can be used to
+measure the count of context switches by applications running
+on the platform. It corresponds to the "perf.context_switches"
+field in the *Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_CPU_MIGRATIONS
+The cpu_migrations perf event counter which can be used to
+measure the count of cpu migrations by applications running
+on the platform. It corresponds to the "perf.cpu_migrations"
+field in the *Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_PAGE_FAULTS_MIN
+The page_faults_min perf event counter which can be used to
+measure the count of minor page faults by applications running
+on the platform. It corresponds to the "perf.page_faults_min"
+field in the *Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_PAGE_FAULTS_MAJ
+The page_faults_maj perf event counter which can be used to
+measure the count of major page faults by applications running
+on the platform. It corresponds to the "perf.page_faults_maj"
+field in the *Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_ALIGNMENT_FAULTS
+The alignment_faults perf event counter which can be used to
+measure the count of alignment faults by applications running
+on the platform. It corresponds to the "perf.alignment_faults"
+field in the *Stats APIs.
+
+=item Sys::Virt::Domain::PERF_PARAM_EMULATION_FAULTS
+The emulation_faults perf event counter which can be used to
+measure the count of emulation faults by applications running
+on the platform. It corresponds to the "perf.emulation_faults"
+field in the *Stats APIs.
+
 =back
 
 =head2 VCPU FLAGS
@@ -3219,6 +3289,12 @@ Guest device removal has failed.
 =item Sys::Virt::Domain::EVENT_ID_METADATA_CHANGE
 
 The domain metadata has changed
+
+=item Sys::Virt::Domain::EVENT_ID_BLOCK_THRESHOLD
+
+The event occurs when the hypervisor detects that the given
+storage element was written beyond the point specified by
+threshold. The event is useful for thin-provisioned storage.
 
 =back
 

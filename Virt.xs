@@ -1136,6 +1136,50 @@ _domain_event_metadata_change_callback(virConnectPtr con,
 
 
 static int
+_domain_event_block_threshold_callback(virConnectPtr con,
+                                       virDomainPtr dom,
+                                       const char *dev,
+                                       const char *path,
+                                       unsigned long long threshold,
+                                       unsigned long long excess,
+                                       void *opaque)
+{
+    AV *data = opaque;
+    SV **self;
+    SV **cb;
+    SV *domref;
+    dSP;
+
+    self = av_fetch(data, 0, 0);
+    cb = av_fetch(data, 1, 0);
+
+    SvREFCNT_inc(*self);
+
+    ENTER;
+    SAVETMPS;
+
+    PUSHMARK(SP);
+    XPUSHs(*self);
+    domref = sv_newmortal();
+    sv_setref_pv(domref, "Sys::Virt::Domain", (void *) dom);
+    virDomainRef(dom);
+    XPUSHs(domref);
+    XPUSHs(sv_2mortal(newSVpv(dev, 0)));
+    XPUSHs(sv_2mortal(newSVpv(path, 0)));
+    XPUSHs(sv_2mortal(newSViv(threshold)));
+    XPUSHs(sv_2mortal(newSViv(excess)));
+    PUTBACK;
+
+    call_sv(*cb, G_DISCARD);
+
+    FREETMPS;
+    LEAVE;
+
+    return 0;
+}
+
+
+static int
 _network_event_lifecycle_callback(virConnectPtr con,
 				  virNetworkPtr net,
 				  int event,
@@ -3374,6 +3418,9 @@ PREINIT:
           break;
       case VIR_DOMAIN_EVENT_ID_METADATA_CHANGE:
           callback = VIR_DOMAIN_EVENT_CALLBACK(_domain_event_metadata_change_callback);
+          break;
+      case VIR_DOMAIN_EVENT_ID_BLOCK_THRESHOLD:
+          callback = VIR_DOMAIN_EVENT_CALLBACK(_domain_event_block_threshold_callback);
           break;
       default:
           callback = VIR_DOMAIN_EVENT_CALLBACK(_domain_event_generic_callback);
@@ -6073,6 +6120,18 @@ send_process_signal(dom, pidsv, signum, flags=0)
       if (virDomainSendProcessSignal(dom, pid, signum, flags) < 0)
           _croak_error();
 
+void
+set_block_threshold(dom, dev, thresholdsv, flags=0)
+    virDomainPtr dom;
+    const char *dev;
+    SV *thresholdsv;
+    unsigned int flags;
+ PREINIT:
+    unsigned long long threshold;
+  PPCODE:
+    threshold = virt_SvIVull(thresholdsv);
+    if (virDomainSetBlockThreshold(dom, dev, threshold, flags) < 0)
+        _croak_error();
 
 void
 destroy(dom_rv, flags=0)
@@ -8160,6 +8219,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_MIGRATE_AUTO_CONVERGE, MIGRATE_AUTO_CONVERGE);
       REGISTER_CONSTANT(VIR_MIGRATE_RDMA_PIN_ALL, MIGRATE_RDMA_PIN_ALL);
       REGISTER_CONSTANT(VIR_MIGRATE_POSTCOPY, MIGRATE_POSTCOPY);
+      REGISTER_CONSTANT(VIR_MIGRATE_TLS, MIGRATE_TLS);
 
       REGISTER_CONSTANT_STR(VIR_MIGRATE_PARAM_BANDWIDTH, MIGRATE_PARAM_BANDWIDTH);
       REGISTER_CONSTANT_STR(VIR_MIGRATE_PARAM_DEST_NAME, MIGRATE_PARAM_DEST_NAME);
@@ -8384,6 +8444,7 @@ BOOT:
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_JOB_COMPLETED, EVENT_ID_JOB_COMPLETED);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_DEVICE_REMOVAL_FAILED, EVENT_ID_DEVICE_REMOVAL_FAILED);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_METADATA_CHANGE, EVENT_ID_METADATA_CHANGE);
+      REGISTER_CONSTANT(VIR_DOMAIN_EVENT_ID_BLOCK_THRESHOLD, EVENT_ID_BLOCK_THRESHOLD);
 
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_WATCHDOG_NONE, EVENT_WATCHDOG_NONE);
       REGISTER_CONSTANT(VIR_DOMAIN_EVENT_WATCHDOG_PAUSE, EVENT_WATCHDOG_PAUSE);
@@ -8500,6 +8561,15 @@ BOOT:
       REGISTER_CONSTANT_STR(VIR_PERF_PARAM_STALLED_CYCLES_FRONTEND, PERF_PARAM_STALLED_CYCLES_FRONTEND);
       REGISTER_CONSTANT_STR(VIR_PERF_PARAM_STALLED_CYCLES_BACKEND, PERF_PARAM_STALLED_CYCLES_BACKEND);
       REGISTER_CONSTANT_STR(VIR_PERF_PARAM_REF_CPU_CYCLES, PERF_PARAM_REF_CPU_CYCLES);
+      REGISTER_CONSTANT_STR(VIR_PERF_PARAM_CPU_CLOCK, PERF_PARAM_CPU_CLOCK);
+      REGISTER_CONSTANT_STR(VIR_PERF_PARAM_TASK_CLOCK, PERF_PARAM_TASK_CLOCK);
+      REGISTER_CONSTANT_STR(VIR_PERF_PARAM_PAGE_FAULTS, PERF_PARAM_PAGE_FAULTS);
+      REGISTER_CONSTANT_STR(VIR_PERF_PARAM_CONTEXT_SWITCHES, PERF_PARAM_CONTEXT_SWITCHES);
+      REGISTER_CONSTANT_STR(VIR_PERF_PARAM_CPU_MIGRATIONS, PERF_PARAM_CPU_MIGRATIONS);
+      REGISTER_CONSTANT_STR(VIR_PERF_PARAM_PAGE_FAULTS_MIN, PERF_PARAM_PAGE_FAULTS_MIN);
+      REGISTER_CONSTANT_STR(VIR_PERF_PARAM_PAGE_FAULTS_MAJ, PERF_PARAM_PAGE_FAULTS_MAJ);
+      REGISTER_CONSTANT_STR(VIR_PERF_PARAM_ALIGNMENT_FAULTS, PERF_PARAM_ALIGNMENT_FAULTS);
+      REGISTER_CONSTANT_STR(VIR_PERF_PARAM_EMULATION_FAULTS, PERF_PARAM_EMULATION_FAULTS);
 
       REGISTER_CONSTANT_STR(VIR_DOMAIN_BANDWIDTH_IN_AVERAGE, BANDWIDTH_IN_AVERAGE);
       REGISTER_CONSTANT_STR(VIR_DOMAIN_BANDWIDTH_IN_PEAK, BANDWIDTH_IN_PEAK);
