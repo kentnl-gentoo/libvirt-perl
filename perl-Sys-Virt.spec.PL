@@ -6,10 +6,10 @@ use strict;
 
 die unless (scalar @ARGV == 1);
 
-unless (do 'lib/Sys/Virt.pm')
+unless (do './lib/Sys/Virt.pm')
   {
     if ($@) { die $@ };
-    die "lib/Sys/Virt.pm: $!";
+    die "./lib/Sys/Virt.pm: $!";
   }
 
 local $/ = undef;
